@@ -1,0 +1,138 @@
+{
+    "Reservoirs":[ 
+        {
+            "dischargepoint": "Flasjön",
+            "totalvolume": 4e4,
+            "currentvolume": 3.5e4,
+            "maxvolume":4e4
+        },
+        {
+            "dischargepoint": "Holmsjön",
+            "totalvolume": 1.92e4,
+            "currentvolume": 1.8e4,
+            "maxvolume":1.92e4
+        }
+    ],
+
+    "HydropowerPlants":[
+        {
+            "name": "Flasjö",
+            "reservoir": "Flasjön",
+            "equivalent": 0.31,
+            "spill_reference_level": 5.8e-1
+        }, 
+        {
+            "name": "Trangfors",
+            "reservoir": "Flasjön",
+            "equivalent": 0.72,
+            "spill_reference_level": 1.05e0
+        }, 
+        {
+            "name": "Rätan",
+            "reservoir": "Flasjön",
+            "equivalent": 0.55,
+            "spill_reference_level": 1.15e0
+        }, 
+        {
+            "name": "Turinge",
+            "reservoir": "Flasjön",
+            "equivalent": 0.19,
+            "spill_reference_level": 1.05e0
+        }, 
+        {
+            "name": "Bursnäs",
+            "reservoir": "Flasjön",
+            "equivalent": 0.07,
+            "spill_reference_level": 1.05e0
+        }, 
+        {
+            "name": "Järnvägsforsen",
+            "reservoir": "Holmsjön",
+            "equivalent": 0.74,
+            "spill_reference_level": 1.45e0
+        }, 
+        {
+            "name": "Parteboda",
+            "reservoir": "Holmsjön",
+            "equivalent": 0.27,
+            "spill_reference_level": 1.4e0
+        }, 
+        {
+            "name": "Hermansboda",
+            "reservoir": "Holmsjön",
+            "equivalent": 0.1,
+            "spill_reference_level": 1.4e0
+        }, 
+        {
+            "name": "Ljunga",
+            "reservoir": "Holmsjön",
+            "equivalent": 0.45,
+            "spill_reference_level": 1.45e0
+        }, 
+        {
+            "name": "Nederede",
+            "reservoir": "Holmsjön",
+            "equivalent": 0.07,
+            "spill_reference_level": 2.4e0
+        }, 
+        {
+            "name": "Skallböle",
+            "reservoir": "Holmsjön",
+            "equivalent": 0.18,
+            "spill_reference_level": 2.65e0
+        }, 
+        {
+            "name": "Matfors",
+            "reservoir": "Holmsjön",
+            "equivalent": 0.8,
+            "spill_reference_level": 2.5e0
+        }, 
+        {
+            "name": "Viforsen",
+            "reservoir": "Holmsjön",
+            "equivalent": 0.07,
+            "spill_reference_level":1.6e0
+        }
+    ],
+    "Participants":[ 
+        {
+            "name": "Sydkraft",
+            "plants": ["Flasjö", "Trangfors", "Rätan", "Turinge", "Bursnäs"],
+            "participationrate": {
+                "Flasjön": 1.84,
+                "Holmsjön": 0.0
+            },
+            "individual_reservoir": {
+                "Flasjön": 1.5e4,
+                "Holmsjön": 1.8e4
+            } 
+        },
+        {
+            "name": "Fortum",
+            "plants": ["Parteboda", "Hermansboda", "Ljunga"],
+            "participationrate": {
+                "Flasjön": 0.82,
+                "Holmsjön": 0.82
+            },
+            "individual_reservoir": {
+                "Flasjön": 1e3,
+                "Holmsjön": 1.4e4
+            } 
+        },
+        {
+            "name": "Statkraft",
+            "plants": ["Nederede", "Skallböle", "Matfors", "Viforsen", "Järnvägsforsen"],
+            "participationrate": {
+                "Flasjön": 1.07,
+                "Holmsjön": 1.07
+            },
+            "individual_reservoir": {
+                "Flasjön": 2e4,
+                "Holmsjön": 1.2e2
+            } 
+        }
+    ],
+    "Connections":{
+        "Holmsjön": ["Flasjön"]
+    }
+}

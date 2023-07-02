@@ -1,0 +1,60 @@
+{
+    "Reservoirs":[ 
+        {
+            "dischargepoint": "r1",
+            "totalvolume": 10000.0,
+            "currentvolume": 5000.0,
+            "maxvolume": 9000.0
+        },
+        {
+            "dischargepoint": "r2",
+            "totalvolume": 10000.0,
+            "currentvolume": 5000.0,
+            "maxvolume": 9000.0
+        }
+    ],
+
+    "HydropowerPlants":[ 
+        {
+            "name": "KraftwerkA",
+            "reservoir": "r1",
+            "equivalent": 0.5,
+            "spill_reference_level": 1
+        },
+        {
+            "name": "KraftwerkB",
+            "reservoir": "r2",
+            "equivalent" :1,
+            "spill_reference_level": 1.5
+        }
+    ],
+    "Participants":[ 
+        {
+            "name": "A",
+            "plants": ["KraftwerkA"],
+            "participationrate": {
+                "r1": 0.5,
+                "r2": 0.0
+            },
+            "balance": {
+                "r1": 0,
+                "r2": 0
+            } 
+        },
+        {
+            "name": "B",
+            "plants": ["KraftwerkB"],
+            "participationrate": {
+                "r1": 1,
+                "r2": 1
+            },
+            "balance": {
+                "r1": 0,
+                "r2": 0
+            } 
+        }
+    ],
+    "Connections":{
+        "r2" : ["r1"] 
+    }
+}
