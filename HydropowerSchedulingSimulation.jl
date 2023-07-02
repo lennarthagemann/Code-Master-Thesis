@@ -23,7 +23,7 @@ try
 catch e
     @warn "Error initializing Revise" exception=(e, catch_backtrace())
 end
-includet("C:/Users/lenna/OneDrive - NTNU/Code Master Thesis/Water_Regulation/WaterRegulation.jl")
+includet(pwd() * "\\Water_Regulation\\WaterRegulation.jl")
 using .WaterRegulation
 
 """
@@ -364,9 +364,9 @@ function read_results(filepath_results, filename, json_dictionary_parts, json_di
     return Qnoms, Qadjs, QadjTots, P_Swaps, POvers, ΣPOvers, MaxEnergys
 end
 
-filepath_Ljungan = "C://Users/lenna/OneDrive - NTNU/Code Master Thesis/Water_Regulation/TestDataWaterRegulation/Ljungan.json"
-filepath_prices = "C://Users/lenna/OneDrive - NTNU/Code Master Thesis/Data/Spot Prices/prices_df.csv"
-filepath_results = "C://Users/lenna/OneDrive - NTNU/Code Master Thesis/Results/LambdaZero/"
+filepath_Ljungan = pwd() * "\\Water_Regulation\\TestDataWaterRegulation\\Ljungan.json"
+filepath_prices = pwd() *  "\\Data\\Spot Prices\\prices_df.csv"
+filepath_results = pwd() * "\\Results\\LambdaZero\\"
 res, plants, parts = read_data(filepath_Ljungan)
 
 T = 24
