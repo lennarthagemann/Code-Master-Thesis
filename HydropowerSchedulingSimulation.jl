@@ -370,7 +370,7 @@ filepath_results = pwd() * "\\Results\\LambdaZero\\"
 res, plants, parts = read_data(filepath_Ljungan)
 
 T = 24
-STAGE_COUNT = 4
+STAGE_COUNT = 7
 ITERATION_COUNT = 10
 SCENARIO_COUNT = 3
 BIG_M = 10e+4

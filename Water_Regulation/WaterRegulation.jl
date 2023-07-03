@@ -876,6 +876,7 @@ function ShortTermOptimizationNoAnticipation(
     Qref,
     mean_price,
     price_sample;
+    riskmeasure = SDDP.Expectation(),
     printlevel = 1,
     optimizer = CPLEX.Optimizer,
     BIG_M = 1e5,
@@ -907,7 +908,7 @@ function ShortTermOptimizationNoAnticipation(
         optimizer = optimizer
     )
     # Train the model
-    SDDP.train(model; iteration_limit = iteration_count, stopping_rules = [stall_bound], print_level = printlevel, risk_measure = 0.5*SDDP.Expectation() + 0.5*SDDP.WorstCase())
+    SDDP.train(model; iteration_limit = iteration_count, stopping_rules = [stall_bound], print_level = printlevel, risk_measure = riskmeasure)
     # obtain decision rule in all steps
     rules = []
     nominations = []
@@ -949,6 +950,7 @@ function ShortTermOptimizationAnticipation(
     Qref,
     mean_price,
     price_sample;
+    riskmeasure = SDDP.Expectation(),
     optimizer = CPLEX.Optimizer,
     printlevel = 1,
     BIG_M = 1e5,
@@ -979,7 +981,7 @@ function ShortTermOptimizationAnticipation(
         optimizer = optimizer
     )
     # train the model
-    SDDP.train(model; iteration_limit = ITERATION_COUNT, stopping_rules = [stall_bound], risk_measure = SDDP.AVaR(0.3), print_level = printlevel)
+    SDDP.train(model; iteration_limit = ITERATION_COUNT, stopping_rules = [stall_bound], risk_measure = riskmeasure, print_level = printlevel)
     # obtain decision rule in all steps, as well as nominations for the reservoir situation.
     rules = []
     nominations = []
