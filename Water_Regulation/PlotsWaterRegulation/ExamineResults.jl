@@ -11,12 +11,12 @@ try
 catch e
     @warn "Error initializing Revise" exception=(e, catch_backtrace())
 end
-includet("C:/Users/lenna/OneDrive - NTNU/Code Master Thesis/Water_Regulation/WaterRegulation.jl")
+includet(pwd() * "\\Water_Regulation\\WaterRegulation.jl")
 using .WaterRegulation
 
 
-filepath_Ljungan = "C://Users/lenna/OneDrive - NTNU/Code Master Thesis/Water_Regulation/TestDataWaterRegulation/Ljungan.json"
-filepath_results = "C://Users/lenna/OneDrive - NTNU/Code Master Thesis/Results/LambdaZero"
+filepath_Ljungan = pwd() * "\\Water_Regulation\\TestDataWaterRegulation\\Ljungan.json"
+filepath_results = pwd() * "\\Results\\LambdaZero"
 filenames_no_ant = ["ResultsNoAnticipation$(i).json" for i in 1:10]
 filenames_ant = ["ResultsAnticipation$(i).json" for i in 1:10]
 filenames_mixed_strat1 = ["ResultsMixedStrat1$(i).json" for i in 1:5]
@@ -112,7 +112,7 @@ function prepare_pricedata(filepath_prices)
     return price_data
 end
 
-filepath_prices = "C://Users/lenna/OneDrive - NTNU/Code Master Thesis/Data/Spot Prices/prices_df.csv"
+filepath_prices = pwd() * "\\Data/Spot Prices\\prices_df.csv"
 price_data = prepare_pricedata(filepath_prices)
 Ω, P, Ω_scenario, P_scenario, mean_hourly_price, max_hourly_price, price_sample = create_Ω(price_data, [0.0], SCENARIO_COUNT, parts)
 
@@ -348,46 +348,6 @@ println("mean amount of lost energy (Mixed) Participant 1: ", Dict(k => mean(v) 
 println("mean amount of lost energy (Mixed) Participant 2: ", Dict(k => mean(v) for (k,v) in ΣMaxEnergys_mix2))
 println("mean amount of lost energy (Mixed) Participant 3: ", Dict(k => mean(v) for (k,v) in ΣMaxEnergys_mix3))
 
-function OptimizationAfterAdjustment(
-    res::Array{Reservoir},
-    plants_j::Array{HydropowerPlant},
-    Qadj_par::Dict{Reservoir, Float64},
-    P_Swap_par::Dict{Reservoir, Float64},
-    c_par::Vector{Float64},
-    T::Int64;
-    optimizer = CPLEX.Optimizer)
-
-    model = Model(optimizer)
-    set_silent(model)
-    # Variables
-    @variable(model, Qreal[r = res, t=1:T] >= 0)
-    @variable(model, Qeff[k = plants_j,t=1:T] >= 0)
-    @variable(model, Qadj[r = res] >= 0)
-    @variable(model, P_Swap[r = res])
-    # Fix Variables which are given as parameters (because they are predetermined)
-    for r in res
-        JuMP.fix(Qadj[r], Qadj_par[r], force=true)
-        JuMP.fix(P_Swap[r], P_Swap_par[r])
-    end
-    # Constraints -> Mostly production constraints determined through spillage etc.
-    for r in res
-        @constraint(model, sum(Qreal[r, t] for t in 1:T) == T * Qadj[r])
-        for t in 1:T
-            @constraint(model, sum(Qeff[k, t] * k.equivalent for k in plants_j) >= - sum(P_Swap[r] for r in res))
-        end
-    end
-    for t in 1:T
-        for k in plants_j
-            @constraint(model, Qeff[k, t] <= sum(Qreal[r_up, t] for r_up in find_us_reservoir(k.reservoir)))
-            @constraint(model, Qeff[k, t] <= k.spill_reference_level)
-        end
-    end
-    # Objective -> Maximize revenue
-    @objective(model, Max, sum(c_par[t] * Qeff[k,t] * k.equivalent for k in plants_j for t in 1:T) + sum(c_par[t] * P_Swap[r] for r in res for t in 1:T))
-
-    optimize!(model)
-    return Qeff, objective_value(model)
-end
 function share_of_perfect_value(c::Vector{Float64}, parts, Qnoms, Qadjs, P_Swaps)
     share = Dict(p => Dict(j => Dict( i => 0.0 for i in 1:rounds) for j in 1:length(Qadjs)) for p in parts)
     for j in eachindex(Qadjs)

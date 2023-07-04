@@ -5,7 +5,7 @@ using Printf
 using JuMP
 using CPLEX
 using SDDP
-export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, ShortTermOptimizationNoAnticipation, ShortTermOptimizationAnticipation
+export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, ShortTermOptimizationNoAnticipation, ShortTermOptimizationAnticipation, OptimizationAfterAdjustment
  
 
 mutable struct Reservoir
@@ -190,7 +190,7 @@ function adjust_flow!(
     adjust_nomination=false
     )
     Qadj::Dict{Reservoir, Float64} = Dict{Reservoir, Float64}(r => 0 for r in unique([nom.reservoir for nom in keys(Qnom)]))
-#    Qnom_cleaned = adjusted_nominations(Qnom)
+    # Qnom_cleaned = adjusted_nominations(Qnom)
     prates_res = Dict{Reservoir, Float64}(r => 0 for r in unique([nom.reservoir for nom in keys(Qnom)]))
     for (nom,v) in Qnom
         @assert haskey(nom.participant.participationrate, nom.reservoir)
@@ -514,13 +514,7 @@ struct AnticipatoryConfig <: AbstractConfiguration end
 
 struct NonAnticipatoryConfig <: AbstractConfiguration end
 
-function add_state_variables(
-    subproblem::Model,
-    res::Vector{Reservoir},
-    res_real_initial::Dict{Reservoir, Float64},
-    res_ind_initial::Dict{Reservoir, Float64},
-    ::AnticipatoryConfig
-    )
+function add_state_variables(subproblem::Model, res::Vector{Reservoir}, res_real_initial::Dict{Reservoir, Float64},res_ind_initial::Dict{Reservoir, Float64}, ::AnticipatoryConfig)
     @variables(subproblem, begin
         0 <= res_real[r = res] <= r.maxvolume, (SDDP.State, initial_value = res_real_initial[r])
         res_ind[r = res], (SDDP.State, initial_value = res_ind_initial[r])
@@ -529,13 +523,7 @@ function add_state_variables(
     return
 end
 
-function add_state_variables(
-    subproblem::Model,
-    res::Vector{Reservoir},
-    res_real_initial::Dict{Reservoir, Float64},
-    res_ind_initial::Dict{Reservoir, Float64},
-    ::NonAnticipatoryConfig
-    )
+function add_state_variables(subproblem::Model, res::Vector{Reservoir}, res_real_initial::Dict{Reservoir, Float64}, res_ind_initial::Dict{Reservoir, Float64}, ::NonAnticipatoryConfig)
     @variables(subproblem, begin
         0 <= res_real[r = res] <= r.maxvolume, (SDDP.State, initial_value = res_real_initial[r])
         res_ind[r = res], (SDDP.State, initial_value = res_ind_initial[r])
@@ -544,14 +532,7 @@ function add_state_variables(
     return
 end
 
-function add_control_variables(
-    subproblem::Model,
-    res::Vector{Reservoir},
-    plants_j::Vector{HydropowerPlant},
-    plants_O::Vector{HydropowerPlant},
-    T::Int64,
-    ::AnticipatoryConfig
-    )
+function add_control_variables(subproblem::Model, res::Vector{Reservoir}, plants_j::Vector{HydropowerPlant}, plants_O::Vector{HydropowerPlant}, T::Int64, ::AnticipatoryConfig)
     @variables(subproblem, begin
         Qnom_change[r = res] >= 0
         Qeff[k = plants_j, t = 1:T] >= 0
@@ -564,13 +545,7 @@ function add_control_variables(
     return
 end
 
-function add_control_variables(
-    subproblem::Model,
-    res::Vector{Reservoir},
-    plants_j:: Vector{HydropowerPlant},
-    T::Int64,
-    ::NonAnticipatoryConfig
-    )
+function add_control_variables(subproblem::Model, res::Vector{Reservoir}, plants_j:: Vector{HydropowerPlant}, T::Int64, ::NonAnticipatoryConfig)
     @variables(subproblem, begin
         Qeff[k = plants_j, t = 1:T] >= 0
         Qreal[r = res, t = 1:T] >= 0
@@ -580,12 +555,7 @@ function add_control_variables(
     return
 end
 
-function add_random_variables(
-    subproblem::Model,
-    res::Vector{Reservoir},
-    T::Int64,
-    ::NonAnticipatoryConfig
-    )
+function add_random_variables(subproblem::Model, res::Vector{Reservoir}, T::Int64, ::NonAnticipatoryConfig)
     @variables(subproblem, begin
         c[t = 1:T]
         Qinflow[r = res] >= 0
@@ -593,12 +563,7 @@ function add_random_variables(
     return
 end
 
-function add_random_variables(
-    subproblem::Model,
-    res::Vector{Reservoir},
-    T::Int64,
-    ::AnticipatoryConfig
-    )   
+function add_random_variables(subproblem::Model, res::Vector{Reservoir}, T::Int64, ::AnticipatoryConfig)   
     @variables(subproblem, begin
         c[t = 1:T]
         Qinflow[r = res] >= 0
@@ -607,16 +572,7 @@ function add_random_variables(
     return
 end
 
-function add_stage_objective(
-    subproblem::Model,
-    node::Int64,
-    res::Vector{Reservoir},
-    plants_j::Vector{HydropowerPlant},
-    j::Participant,
-    mean_price::Dict{Reservoir, Float64},
-    T::Int64,
-    ::NonAnticipatoryConfig
-    )
+function add_stage_objective(subproblem::Model, node::Int64, res::Vector{Reservoir}, plants_j::Vector{HydropowerPlant}, j::Participant, mean_price::Dict{Reservoir, Float64}, T::Int64,::NonAnticipatoryConfig)
     Qeff = subproblem[:Qeff]
     c = subproblem[:c]
     res_ind = subproblem[:res_ind]
@@ -630,16 +586,7 @@ function add_stage_objective(
     return
 end
 
-function add_stage_objective(
-    subproblem::Model,
-    node::Int64,
-    res::Vector{Reservoir},
-    plants_j::Vector{HydropowerPlant},
-    j::Participant,
-    mean_price::Dict{Reservoir, Float64},
-    T::Int64,
-    ::AnticipatoryConfig
-    )
+function add_stage_objective(subproblem::Model, node::Int64, res::Vector{Reservoir}, plants_j::Vector{HydropowerPlant}, j::Participant, mean_price::Dict{Reservoir, Float64}, T::Int64, ::AnticipatoryConfig)
     Qeff = subproblem[:Qeff]
     c = subproblem[:c]
     res_ind = subproblem[:res_ind]
@@ -657,14 +604,7 @@ function add_stage_objective(
     return
 end
 
-function add_transition_function(
-    subproblem::Model,
-    res::Vector{Reservoir},
-    node::Int64,
-    T::Int64,
-    Qref::Dict{Reservoir, Float64},
-    ::NonAnticipatoryConfig
-    )
+function add_transition_function(subproblem::Model, res::Vector{Reservoir}, node::Int64, T::Int64, Qref::Dict{Reservoir, Float64}, ::NonAnticipatoryConfig)
     res_real = subproblem[:res_real]
     res_ind = subproblem[:res_ind]
     Qnom = subproblem[:Qnom]
@@ -686,14 +626,7 @@ function add_transition_function(
     return
 end
 
-function add_transition_function(
-    subproblem::Model,
-    res::Vector{Reservoir},
-    node::Int64,
-    T::Int64,
-    Qref::Dict{Reservoir, Float64},
-    ::AnticipatoryConfig
-    )
+function add_transition_function(subproblem::Model, res::Vector{Reservoir}, node::Int64, T::Int64, Qref::Dict{Reservoir, Float64}, ::AnticipatoryConfig)
     res_real = subproblem[:res_real]
     res_ind = subproblem[:res_ind]
     Qnom = subproblem[:Qnom]
@@ -714,17 +647,7 @@ function add_transition_function(
     end
 end
 
-function add_stage_constraints(
-    subproblem::Model,
-    res::Vector{Reservoir},
-    plants_j::Vector{HydropowerPlant},
-    Qref::Dict{Reservoir, Float64},
-    BIG_M::Float64,
-    T::Int64,
-    stage_count::Int64,
-    node::Int64,
-    ::NonAnticipatoryConfig
-    )
+function add_stage_constraints(subproblem::Model, res::Vector{Reservoir}, plants_j::Vector{HydropowerPlant}, Qref::Dict{Reservoir, Float64}, BIG_M::Float64, T::Int64, stage_count::Int64, node::Int64, ::NonAnticipatoryConfig)
     res_real = subproblem[:res_real]
     res_ind = subproblem[:res_ind]
     Qnom = subproblem[:Qnom]
@@ -762,20 +685,7 @@ function add_stage_constraints(
     return
 end
 
-function add_stage_constraints(
-    subproblem::Model,
-    node::Int64,
-    res::Vector{Reservoir},
-    plants_j::Vector{HydropowerPlant},
-    plants_O::Vector{HydropowerPlant},
-    j::Participant,
-    O::Participant,
-    Qref::Dict{Reservoir, Float64},
-    BIG_M::Float64,
-    T::Int64,
-    stage_count::Int64,
-    ::AnticipatoryConfig
-    )
+function add_stage_constraints(subproblem::Model, node::Int64, res::Vector{Reservoir}, plants_j::Vector{HydropowerPlant}, plants_O::Vector{HydropowerPlant}, j::Participant, O::Participant, Qref::Dict{Reservoir, Float64}, BIG_M::Float64, T::Int64, stage_count::Int64, ::AnticipatoryConfig)
     res_real = subproblem[:res_real]
     res_ind = subproblem[:res_ind]
     Qnom = subproblem[:Qnom]
@@ -930,7 +840,6 @@ function ShortTermOptimizationNoAnticipation(
     return model, rules, nominations
 end
 
-
 function ShortTermOptimizationAnticipation(
     res::Array{Reservoir},
     j::Participant,
@@ -999,5 +908,38 @@ function ShortTermOptimizationAnticipation(
     end
     return model, rules, nominations
 end
+
+function OptimizationAfterAdjustment(res::Array{Reservoir}, plants_j::Array{HydropowerPlant}, Qadj_par::Dict{Reservoir, Float64}, P_Swap_par::Dict{Reservoir, Float64}, c_par::Vector{Float64}, T::Int64; optimizer = CPLEX.Optimizer) 
+    model = Model(optimizer)
+    # Variables
+    @variable(model, Qreal[r = res, t=1:T] >= 0)
+    @variable(model, Qeff[k = plants_j,t=1:T] >= 0)
+    @variable(model, Qadj[r = res] >= 0)
+    @variable(model, P_Swap[r = res])
+    # Fix Variables which are given as parameters (because they are predetermined)
+    for r in res
+        JuMP.fix(Qadj[r], Qadj_par[r], force=true)
+        JuMP.fix(P_Swap[r], P_Swap_par[r])
+    end
+    for t in 1:T
+        JuMP.fix(c[t], c_par[t])
+    end
+    # Constraints -> Mostly production constraints determined thorugh spillage etc.
+    for r in res
+        @constraint(model, sum(Qreal[r, t]) == T * Qadj[r])
+    end
+    for t in 1:T
+        @constraint(model, sum(Qeff[k, t] for k in filter(x -> x.reservoir in find_ds_reservoirs(r), plants_j)) >= - P_Swap[r])
+        for k in plants_j
+            @constraint(model, Qeff[k, t] <= sum(Qreal[r_up, t] for r_up in find_us_reservoir(k.reservoir)))
+            @constraint(model, Qeff[k, t] <= k.spill_reference_level)
+        end
+    end
+    # Objective -> Maximize revenue
+    @objective(model, Max, sum(c[t] * Qeff[k,t] for k in plants_j for t in 1:T) + sum(c[t] * P_Swap[r] for r in res for t in 1:T))
+    optimize!(model)
+    return Qeff, objective_value(model)
+end
+
 
 end

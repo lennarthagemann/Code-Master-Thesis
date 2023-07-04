@@ -106,49 +106,6 @@ function ChooseStrategy(strat::String, p::Participant, r::Reservoir, Qnom, Qnom_
     end
 end
 
-function OptimizationAfterAdjustment(
-    res::Array{Reservoir},
-    j::Participant,
-    plants::Array{HydropowerPlant},
-    Qadj::Dict{Reservoir, Float64},
-    P_Swap::Dict{Reservoir, Float64},
-    c::Vector{Float64},
-    T::Int64;
-    optimizer = CPLEX.Optimizer)
-    model = Model(optimizer)
-    # Variables
-    @variable(model, Qreal[r = res, t=1:T] >= 0)
-    @variable(model, Qeff[k = plants,t=1:T] >= 0)
-    @variable(model, Qadj[r = res] >= 0)
-    @variable(model, P_Swap[r = res])
-    # Fix Variables which are given as parameters (because they are predetermined)
-    for r in res
-        JuMP.fix(Qadj[r], Qadj[r])
-        JuMP.fix(P_Swap[r], P_Swap[r])
-    end
-    for t in 1:T
-        JuMP.fix(c[t], c[t])
-    end
-    # Constraints -> Mostly production constraints determined thorugh spillage etc.
-    for r in res
-        @constraint(model, sum(Qreal[r, t]) == T * Qadj[r])
-        for t in 1:T
-            @constraint(model, sum(Qeff[k, t] for k in filter(x -> x.reservoir in find_ds_reservoirs(r), plants)) >= - P_Swap[r])
-        end
-    end
-    for t in 1:T
-        for k in plants_j
-            @constraint(model, Qeff[k, t] <= sum(Qreal[r_up, t] for r_up in find_us_reservoir(k.reservoir)))
-            @constraint(model, Qeff[k, t] <= k.spill_reference_level)
-        end
-    end
-    # Objective -> Maximize revenue
-    @objective(model, Min, -sum(c[t] * Qeff[k,t] for k in plants for t in 1:T) - sum(c[t] * P_Swap[r] for r in res for t in 1:T))
-
-    optimize!(model)
-    return Qeff 
-end
-
 """ 
 Hooray, time to optimize!
 Obtain Nomination of first stage (as is the only deterministic one, and only realistic decision at the moment) for everyone by optimizing both strategies.
