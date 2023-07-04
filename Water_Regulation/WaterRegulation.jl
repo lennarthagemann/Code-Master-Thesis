@@ -248,13 +248,9 @@ end
 """
 Update the real (!) reservoir volume after adjustment of flow 
 """
-function update_reservoir(Qadj_All::Dict{Reservoir, Float64}, T::Int64)
-   for (d, Qadj) in Qadj_All
-        if haskey(Qadj_All, d.upstream_reservoir)
-            d.currentvolume -= Qadj*T + sum([adj for adj in Qadj_All[d.upstream_reservoir]])
-        else
-            d.currentvolume -= Qadj*T
-        end
+function update_reservoir(Qadj::Dict{Reservoir, Float64}, T::Int64; round_decimal_places = 5)
+   for (d, adj) in Qadj
+        d.currentvolume -= adj*T
     end
 end
 
@@ -659,9 +655,6 @@ function add_stage_constraints(subproblem::Model, res::Vector{Reservoir}, plants
         for r in res
             @constraint(subproblem, 0 <= res_ind[r].in + BIG_M * BALANCE_INDICATOR[r])
             @constraint(subproblem, Qnom_change[r] <= Qref[r] + BIG_M *(1 - BALANCE_INDICATOR[r]))
-            for k in plants_j
-                @constraint(subproblem, sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spill_reference_level + BIG_M * (1 - BALANCE_INDICATOR[k.reservoir]))
-            end
             # Constraints
             @constraint(subproblem, stage_count * T * Qnom_change[r] <= res_real[r].out)
         end
@@ -669,11 +662,14 @@ function add_stage_constraints(subproblem::Model, res::Vector{Reservoir}, plants
         for r in res
             @constraint(subproblem, stage_count * T * Qnom_change[r] <= res_real[r].out)
             @constraint(subproblem, sum(Qreal[r, t] for t in 1:T) == T * Qnom[r].in)
-            @constraint(subproblem, Qnom_change[r] <= Qref[r] + BIG_M *(1 - BALANCE_INDICATOR[r]))
-            @constraint(subproblem, 0 <= res_ind[r].in + BIG_M * BALANCE_INDICATOR[r])
+            # @constraint(subproblem, Qnom_change[r] <= Qref[r] + BIG_M *(1 - BALANCE_INDICATOR[r]))
+            # @constraint(subproblem, 0 <= res_ind[r].in + BIG_M * BALANCE_INDICATOR[r])
+            @constraint(subproblem, BALANCE_INDICATOR[r] => {Qnom_change[r] <= Qref[r]})
+            @constraint(subproblem, !BALANCE_INDICATOR[r] => {0 <= res_ind[r].in})
         end
         for k in plants_j
-            @constraint(subproblem, sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spill_reference_level + BIG_M * (1 - BALANCE_INDICATOR[k.reservoir]))
+            # @constraint(subproblem, sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spill_reference_level + BIG_M * (1 - BALANCE_INDICATOR[k.reservoir]))
+            @constraint(subproblem, BALANCE_INDICATOR[k.reservoir] => {sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spill_reference_level})
         end
         for t in 1:T
             for k in plants_j
@@ -700,13 +696,16 @@ function add_stage_constraints(subproblem::Model, node::Int64, res::Vector{Reser
     Qnom_O = subproblem[:Qnom_O]
     if node == 1
         for k in plants_j
-            @constraint(subproblem, sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spill_reference_level + BIG_M * (1 - BALANCE_INDICATOR[k.reservoir]))
+            # @constraint(subproblem, sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spill_reference_level + BIG_M * (1 - BALANCE_INDICATOR[k.reservoir]))
+            @constraint(subproblem, BALANCE_INDICATOR[k.reservoir] => {sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spill_reference_level})
         end
         for r in res
             # Constraints
-            @constraint(subproblem, Qnom_change[r] <= Qref[r] + BIG_M *(1 - BALANCE_INDICATOR[r]))
-            @constraint(subproblem, 0 <= res_ind[r].in + BIG_M * BALANCE_INDICATOR[r])
+            # @constraint(subproblem, Qnom_change[r] <= Qref[r] + BIG_M *(1 - BALANCE_INDICATOR[r]))
+            # @constraint(subproblem, 0 <= res_ind[r].in + BIG_M * BALANCE_INDICATOR[r])
             @constraint(subproblem, stage_count * T * Qnom_change[r] <= res_real[r].out)
+            @constraint(subproblem, BALANCE_INDICATOR[r] => {Qnom_change[r] <= Qref[r]})
+            @constraint(subproblem, !BALANCE_INDICATOR[r] => {0 <= res_ind[r].in})
         end
     else
         for r in res
@@ -789,7 +788,7 @@ function ShortTermOptimizationNoAnticipation(
     riskmeasure = SDDP.Expectation(),
     printlevel = 1,
     optimizer = CPLEX.Optimizer,
-    BIG_M = 1e5,
+    BIG_M = 5e4,
     stall_bound = SDDP.BoundStalling(5, 1e-2),
     config = NonAnticipatoryConfig()
     )
@@ -862,7 +861,7 @@ function ShortTermOptimizationAnticipation(
     riskmeasure = SDDP.Expectation(),
     optimizer = CPLEX.Optimizer,
     printlevel = 1,
-    BIG_M = 1e5,
+    BIG_M = 5e4,
     stall_bound = SDDP.BoundStalling(5, 1e-2),
     config = AnticipatoryConfig()
     )

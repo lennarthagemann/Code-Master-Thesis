@@ -330,7 +330,6 @@ T = 24
 STAGE_COUNT = 7
 ITERATION_COUNT = 10
 SCENARIO_COUNT = 3
-BIG_M = 10e+4
 
 INITIAL_RESERVOIR = Dict{Reservoir, Float64}(r => r.currentvolume for r in res)
 INITIAL_INDIVIDUAL_RESERVOIR = Dict{Participant, Dict{Reservoir, Float64}}(p => Dict(r => p.individual_reservoir[r] for r in res) for p in parts)
