@@ -1,0 +1,7 @@
+# Ignore Files irrelevant to the main codebase.
+Data/
+Julia_Tests/
+model1/
+Results/
+PriceForecasting/
+*.html
