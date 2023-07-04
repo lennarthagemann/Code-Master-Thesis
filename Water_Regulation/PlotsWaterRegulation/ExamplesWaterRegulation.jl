@@ -14,12 +14,12 @@ try
 catch e
     @warn "Error initializing Revise" exception=(e, catch_backtrace())
 end
-includet("C:/Users/lenna/OneDrive - NTNU/Code Master Thesis/Water_Regulation/WaterRegulation.jl")
+includet(pwd() * "\\Water_Regulation\\WaterRegulation.jl")
 using .WaterRegulation
 
-filepath_Ljungan = "C://Users/lenna/OneDrive - NTNU/Code Master Thesis/Water_Regulation/TestDataWaterRegulation/Ljungan.json"
-filepath_prices = "C://Users/lenna/OneDrive - NTNU/Code Master Thesis/Data/Spot Prices/prices_df.csv"
-filepath_results = "C://Users/lenna/OneDrive - NTNU/Code Master Thesis/Results"
+filepath_Ljungan = pwd() *"\\Water_Regulation\\TestDataWaterRegulation\\Ljungan.json"
+filepath_prices = pwd() * "\\Data\\Spot Prices\\prices_df.csv"
+filepath_results = pwd() * "\\Results"
 res, plants, parts = read_data(filepath_Ljungan)
 
 function prepare_pricedata(filepath_prices)
@@ -88,10 +88,8 @@ println(nom)
 Ω_nom = Dict(s => [(price = price_sample[s][i], inflow = Q, nomination = nom[i][s]) for i in 1:length(price_sample[s]) for Q in inflow_scenarios] for s in 1:STAGE_COUNT)
 P_nom = Dict(s => [1/length(eachindex(Ω_nom[s])) for i in eachindex(Ω[s])] for s in 1:STAGE_COUNT)
 
-"""
 
-"""
-plot_safepath =" C://Users/lenna/OneDrive - NTNU/Master Thesis/Presentation VF/Images/othersNominations.png"
+plot_safepath = "C:\\Users\\Lenni\\Documents\\Master Thesis\\Master Thesis\\Presentation VF\\Images\\othersNominations.png"
 function plot_OtherNominations(nom)
     x = 1:length(nom[1])-1
     plot(x, [sum(nom[1][i][r] for r in res) for i in 1:length(nom[1])-1], legend=false, fmt=:png)
