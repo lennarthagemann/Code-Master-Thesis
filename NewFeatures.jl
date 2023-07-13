@@ -26,18 +26,15 @@ filepath_prices = pwd() *  "\\Data\\Spot Prices\\prices_df.csv"
 filepath_results = pwd() * "\\Results\\LambdaZero\\"
 res, plants, parts = read_data(filepath_Ljungan)
 
-
-k = plants[1]
-ek = k.equivalent
-Qspill = k.spill_reference_level
-n = 5
-
 """
 Calculate cuts for generation function. Given a number of cuts, efficiency e and spill limit, return coefficients of the cuts 
 by linear interpolation of the points.
 """
 
-kx, keffs, x, y = Generation_Cuts(Qspill, ek, n)
+k = plants[1]
+n = 3
+
+kx, keffs = Generation_Cuts(k, 5)
 
 abstract type AbstractConfiguration end
 
@@ -469,17 +466,17 @@ function ShortTermOptimizationAnticipationDevelopment(
     return model, rules, nominations
 end
 
-# model, rules, nominations = ShortTermOptimizationNoAnticipationDevelopment(
-#     res,
-#     parts[1],
-#     OtherParticipant(parts[1], parts),
-#     parts[1].plants,
-#     10,
-#     7,
-#     3,
-#     24,
+model, rules, nominations = ShortTermOptimizationNoAnticipationDevelopment(
+    res,
+    parts[1],
+    OtherParticipant(parts[1], parts),
+    parts[1].plants,
+    10,
+    7,
+    3,
+    24,
 
-# )
+)
 
 function MediumTermOptimizationDevelopment(
     all_res::Array{Reservoir},
