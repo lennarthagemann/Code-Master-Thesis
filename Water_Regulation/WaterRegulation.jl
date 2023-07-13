@@ -517,9 +517,9 @@ end
 """
 Generate cuts for the generation function of hydro units
 """
-function Generation_Cuts(Qspill::Float64, e::Float64, n::Int64)
-    x = range(0,Qspill,n)
-    effs  = range(e, e/2, n)
+function Generation_Cuts(k::HydropowerPlant, n::Int64)
+    x = range(0,k.spill_reference_level,n)
+    effs  = range(k.equivalent, k.equivalent/2, n)
     y = x .* effs
     # Get Slopes and y value of origin to obtain cut coefficients
     f1 = [(y[i] - y[i-1])/(x[i] - x[i-1]) for i in 2:n] 
