@@ -5,7 +5,7 @@ using Printf
 using JuMP
 using CPLEX
 using SDDP
-export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, ShortTermOptimizationNoAnticipation, ShortTermOptimizationAnticipation, OptimizationAfterAdjustment
+export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Generation_Cuts, ShortTermOptimizationNoAnticipation, ShortTermOptimizationAnticipation, OptimizationAfterAdjustment
  
 
 mutable struct Reservoir
@@ -500,10 +500,18 @@ end
 # --------------------------- Optimization Functions from SDDP -------------------------------------- 
 
 """
-Generalize code by adding configurations:
-AnticipatoryConfiguration -> add variables, constraints, etc. relevant to anticipatory problem specification
-NonAnticipatoryConfiguration -> likewise.
+Generate cuts for the generation function of hydro units
 """
+function Generation_Cuts(Qspill::Float64, e::Float64, n::Int64)
+    x = range(0,Qspill,n)
+    effs  = range(e, e/2, n)
+    y = x .* effs
+    # Get Slopes and y value of origin to obtain cut coefficients
+    f1 = [(y[i] - y[i-1])/(x[i] - x[i-1]) for i in 2:n] 
+    f2 = [y[i] - f1[i-1] * x[i] for i in 2:n]
+    return f1, f2, x, y
+end
+
 abstract type AbstractConfiguration end
 
 struct AnticipatoryConfig <: AbstractConfiguration end
