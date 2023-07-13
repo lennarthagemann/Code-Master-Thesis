@@ -45,20 +45,22 @@ struct AnticipatoryConfig <: AbstractConfiguration end
 
 struct NonAnticipatoryConfig <: AbstractConfiguration end
 
-function add_state_variables(subproblem::Model, res::Vector{Reservoir}, res_real_initial::Dict{Reservoir, Float64},res_ind_initial::Dict{Reservoir, Float64}, ::AnticipatoryConfig)
+function add_state_variables(subproblem::Model, res::Vector{Reservoir}, T::Int64, res_real_initial::Dict{Reservoir, Float64},res_ind_initial::Dict{Reservoir, Float64}, ::AnticipatoryConfig)
     @variables(subproblem, begin
         0 <= res_real[r = res] <= r.maxvolume, (SDDP.State, initial_value = res_real_initial[r])
         res_ind[r = res], (SDDP.State, initial_value = res_ind_initial[r])
         Qnom[r = res], (SDDP.State, initial_value = 0)
+        d[t = 1:T], (SDDP.State, initial_value = 0)
     end)
     return
 end
 
-function add_state_variables(subproblem::Model, res::Vector{Reservoir}, res_real_initial::Dict{Reservoir, Float64}, res_ind_initial::Dict{Reservoir, Float64}, ::NonAnticipatoryConfig)
+function add_state_variables(subproblem::Model, res::Vector{Reservoir}, T::Int64, res_real_initial::Dict{Reservoir, Float64}, res_ind_initial::Dict{Reservoir, Float64}, ::NonAnticipatoryConfig)
     @variables(subproblem, begin
         0 <= res_real[r = res] <= r.maxvolume, (SDDP.State, initial_value = res_real_initial[r])
         res_ind[r = res], (SDDP.State, initial_value = res_ind_initial[r])
         Qnom[r = res], (SDDP.State, initial_value = 0)
+        d[t = 1:T], (SDDP.State, initial_value = 0)
     end)
     return
 end
@@ -66,22 +68,28 @@ end
 function add_control_variables(subproblem::Model, res::Vector{Reservoir}, plants_j::Vector{HydropowerPlant}, plants_O::Vector{HydropowerPlant}, T::Int64, ::AnticipatoryConfig)
     @variables(subproblem, begin
         Qnom_change[r = res] >= 0
+        d_bid[t = 1:T] >= 0
         Qeff[k = plants_j, t = 1:T] >= 0
         Qreal[r = res, t = 1:T] >= 0
         Qadj[r = res] >= 0
         P_Swap[r = res]
         P_Over[k = plants_O] >= 0
         BALANCE_INDICATOR[r = res], Bin
+        z_up[t = 1:T] >= 0
+        z_down[t = 1:T] >= 0
     end)
     return
 end
 
 function add_control_variables(subproblem::Model, res::Vector{Reservoir}, plants_j:: Vector{HydropowerPlant}, T::Int64, ::NonAnticipatoryConfig)
     @variables(subproblem, begin
+        d_bid[t = 1:T] >= 0
         Qeff[k = plants_j, t = 1:T] >= 0
         Qreal[r = res, t = 1:T] >= 0
         Qnom_change[r = res] >= 0
         BALANCE_INDICATOR[r = res], Bin
+        z_up[t = 1:T] >= 0
+        z_down[t = 1:T] >= 0
     end)
     return
 end
@@ -104,13 +112,13 @@ function add_random_variables(subproblem::Model, res::Vector{Reservoir}, T::Int6
 end
 
 function add_stage_objective(subproblem::Model, node::Int64, res::Vector{Reservoir}, plants_j::Vector{HydropowerPlant}, j::Participant, mean_price::Dict{Reservoir, Float64}, T::Int64,::NonAnticipatoryConfig)
-    Qeff = subproblem[:Qeff]
+    d = subproblem[:d]
     c = subproblem[:c]
     res_ind = subproblem[:res_ind]
     if node == 1
         @stageobjective(subproblem, 0)
     else
-        @stageobjective(subproblem,  -(sum(c[t] * Qeff[k, t] * k.equivalent for t in 1:T for k in plants_j)
+        @stageobjective(subproblem,  -(sum(c[t] * d[t].in for t in 1:T for k in plants_j)
         # + sum(((j.participationrate[r])/(j.participationrate[r] + O.participationrate[r])) * (res_real[r].out - res_real[r].in)  * j.participationrate[r] * mean_price[r] for r in res) 
         + sum((res_ind[r].out - res_ind[r].in) * j.participationrate[r] * mean_price[r] for r in res))/1e3)
     end
@@ -118,7 +126,7 @@ function add_stage_objective(subproblem::Model, node::Int64, res::Vector{Reservo
 end
 
 function add_stage_objective(subproblem::Model, node::Int64, res::Vector{Reservoir}, plants_j::Vector{HydropowerPlant}, j::Participant, mean_price::Dict{Reservoir, Float64}, T::Int64, ::AnticipatoryConfig)
-    Qeff = subproblem[:Qeff]
+    d = subproblem[:d]
     c = subproblem[:c]
     res_ind = subproblem[:res_ind]
     P_Swap = subproblem[:P_Swap]
@@ -127,8 +135,7 @@ function add_stage_objective(subproblem::Model, node::Int64, res::Vector{Reservo
         @stageobjective(subproblem, 0)
     else
         # Objective Function
-        @stageobjective(subproblem,  -(sum(c[t] * Qeff[k, t] * k.equivalent for t in 1:T for k in plants_j)
-        + sum(c[t] * P_Swap[r] for t in 1:T for r in res)
+        @stageobjective(subproblem,  -(sum(c[t] * d[t].in for t in 1:T for k in plants_j)
         # + sum(((j.participationrate[r])/(j.participationrate[r] + O.participationrate[r])) * (res_real[r].out - res_real[r].in)  * j.participationrate[r] * mean_price[r] for r in res) 
         + sum((res_ind[r].out - res_ind[r].in)  * j.participationrate[r] * mean_price[r] for r in res))/1e3)
     end
@@ -141,17 +148,21 @@ function add_transition_function(subproblem::Model, res::Vector{Reservoir}, node
     Qnom = subproblem[:Qnom]
     Qnom_change = subproblem[:Qnom_change]
     Qinflow = subproblem[:Qinflow]
+    d = subproblem[:d]
+    d_bid = subproblem[:d_bid]
     if node == 1
         for r in res
             @constraint(subproblem, res_real[r].out == res_real[r].in)
             @constraint(subproblem, res_ind[r].out == res_ind[r].in)
             @constraint(subproblem, Qnom[r].out == Qnom_change[r])
+            @constratin(subproblem, d[t].out == d_bid[t])
         end
     else
         for r in res
             @constraint(subproblem, res_real[r].out == res_real[r].in - T * (Qnom[r].in - Qinflow[r]))
             @constraint(subproblem, res_ind[r].out == res_ind[r].in - T * (Qnom[r].in - Qref[r]))
             @constraint(subproblem, Qnom[r].out == Qnom_change[r])
+            @constratin(subproblem, d[t].out == d_bid[t])
         end
     end
     return
@@ -162,23 +173,26 @@ function add_transition_function(subproblem::Model, res::Vector{Reservoir}, node
     res_ind = subproblem[:res_ind]
     Qnom = subproblem[:Qnom]
     Qnom_change = subproblem[:Qnom_change]
+    Qadj = subproblem[:Qadj]
     Qinflow = subproblem[:Qinflow]
     if node == 1
         for r in res
             @constraint(subproblem, res_real[r].out == res_real[r].in)
             @constraint(subproblem, res_ind[r].out == res_ind[r].in)
             @constraint(subproblem, Qnom[r].out == Qnom_change[r])
+            @constraint(subproblem, d[t].out == d_bid[t])
         end
     else
         for r in res
-            @constraint(subproblem, res_real[r].out == res_real[r].in - T * (Qnom[r].in - Qinflow[r]))
+            @constraint(subproblem, res_real[r].out == res_real[r].in - T * (Qadj[r] - Qinflow[r]))
             @constraint(subproblem, res_ind[r].out == res_ind[r].in - T * (Qnom[r].in - Qref[r]))
             @constraint(subproblem, Qnom[r].out == Qnom_change[r])
+            @constraint(subproblem, d[t].out == d_bid[t])
         end
     end
 end
 
-function add_stage_constraints(subproblem::Model, res::Vector{Reservoir}, plants_j::Vector{HydropowerPlant}, Qref::Dict{Reservoir, Float64}, BIG_M::Float64, T::Int64, stage_count::Int64, node::Int64, ::NonAnticipatoryConfig)
+function add_stage_constraints(subproblem::Model, res::Vector{Reservoir}, plants_j::Vector{HydropowerPlant}, Qref::Dict{Reservoir, Float64}, T::Int64, stage_count::Int64, node::Int64, ::NonAnticipatoryConfig)
     res_real = subproblem[:res_real]
     res_ind = subproblem[:res_ind]
     Qnom = subproblem[:Qnom]
@@ -186,10 +200,15 @@ function add_stage_constraints(subproblem::Model, res::Vector{Reservoir}, plants
     Qnom_change = subproblem[:Qnom_change]
     Qeff = subproblem[:Qeff]
     Qreal = subproblem[:Qreal]
+    d = subproblem[:d]
+    z_up = subproblem[:z_up]
+    z_down = subproblem[:z_down]
     if node == 1
         for r in res
-            @constraint(subproblem, 0 <= res_ind[r].in + BIG_M * BALANCE_INDICATOR[r])
-            @constraint(subproblem, Qnom_change[r] <= Qref[r] + BIG_M *(1 - BALANCE_INDICATOR[r]))
+            # @constraint(subproblem, 0 <= res_ind[r].in + BIG_M * BALANCE_INDICATOR[r])
+            # @constraint(subproblem, Qnom_change[r] <= Qref[r] + BIG_M *(1 - BALANCE_INDICATOR[r]))
+            @constraint(subproblem, BALANCE_INDICATOR[r] => {Qnom_change[r] <= Qref[r]})
+            @constraint(subproblem, !BALANCE_INDICATOR[r] => {0 <= res_ind[r].in})
             # Constraints
             @constraint(subproblem, stage_count * T * Qnom_change[r] <= res_real[r].out)
         end
@@ -211,12 +230,13 @@ function add_stage_constraints(subproblem::Model, res::Vector{Reservoir}, plants
                 @constraint(subproblem, Qeff[k, t] <= sum(Qreal[r_up, t] for r_up in find_us_reservoir(k.reservoir)))
                 @constraint(subproblem, Qeff[k, t] <= k.spill_reference_level)
             end
+            @constraint(subproblem, d[t].in == sum(Qeff[k,t] for k in plants_j) + z_up[t] - z_down[t])
         end
     end
     return
 end
 
-function add_stage_constraints(subproblem::Model, node::Int64, res::Vector{Reservoir}, plants_j::Vector{HydropowerPlant}, plants_O::Vector{HydropowerPlant}, j::Participant, O::Participant, Qref::Dict{Reservoir, Float64}, BIG_M::Float64, T::Int64, stage_count::Int64, ::AnticipatoryConfig)
+function add_stage_constraints(subproblem::Model, node::Int64, res::Vector{Reservoir}, plants_j::Vector{HydropowerPlant}, plants_O::Vector{HydropowerPlant}, j::Participant, O::Participant, T::Int64, Qref::Dict{Reservoir, Float64}, stage_count::Int64, ::AnticipatoryConfig)
     res_real = subproblem[:res_real]
     res_ind = subproblem[:res_ind]
     Qnom = subproblem[:Qnom]
@@ -227,8 +247,10 @@ function add_stage_constraints(subproblem::Model, node::Int64, res::Vector{Reser
     Qadj = subproblem[:Qadj]
     P_Over = subproblem[:P_Over]
     P_Swap = subproblem[:P_Swap]
-    Qinflow = subproblem[:Qinflow]
     Qnom_O = subproblem[:Qnom_O]
+    d = subproblem[:d]
+    z_up = subproblem[:z_up]
+    z_down = subproblem[:z_down]
     if node == 1
         for k in plants_j
             # @constraint(subproblem, sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spill_reference_level + BIG_M * (1 - BALANCE_INDICATOR[k.reservoir]))
@@ -249,18 +271,22 @@ function add_stage_constraints(subproblem::Model, node::Int64, res::Vector{Reser
             @constraint(subproblem, Qadj[r] == (Qnom_O[r] * O.participationrate[r] + Qnom[r].in * j.participationrate[r])/(O.participationrate[r] + j.participationrate[r]))
             @constraint(subproblem, P_Swap[r] ==  (Qnom[r].in - Qadj[r]) * j.participationrate[r] - sum(P_Over[k] for k in filter(k -> k.reservoir == r, plants_O)))
             @constraint(subproblem, sum(Qreal[r, t] for t in 1:T) == T * Qadj[r])
-            @constraint(subproblem, Qnom_change[r] <= Qref[r] + BIG_M *(1 - BALANCE_INDICATOR[r]))
-            @constraint(subproblem, 0 <= res_ind[r].in + BIG_M * BALANCE_INDICATOR[r])
+            # @constraint(subproblem, Qnom_change[r] <= Qref[r] + BIG_M *(1 - BALANCE_INDICATOR[r]))
+            # @constraint(subproblem, 0 <= res_ind[r].in + BIG_M * BALANCE_INDICATOR[r])
+            @constraint(subproblem, BALANCE_INDICATOR[r] => {Qnom_change[r] <= Qref[r]})
+            @constraint(subproblem, !BALANCE_INDICATOR[r] => {0 <= res_ind[r].in})
         end
         for k in plants_O
             @constraint(subproblem, P_Over[k] >=  (sum(Qadj[r] for r in find_us_reservoir(k.reservoir)) - k.spill_reference_level) * k.equivalent)
-            @constraint(subproblem, sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spill_reference_level + BIG_M * (1 - BALANCE_INDICATOR[k.reservoir]))
+            # @constraint(subproblem, sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spill_reference_level + BIG_M * (1 - BALANCE_INDICATOR[k.reservoir]))
+            @constraint(subproblem, BALANCE_INDICATOR[k.reservoir] => {sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spill_reference_level})
         end
         for t in 1:T
             for k in plants_j
                 @constraint(subproblem, Qeff[k, t] <= sum(Qreal[r_up, t] for r_up in find_us_reservoir(k.reservoir)))
                 @constraint(subproblem, Qeff[k, t] <= k.spill_reference_level)
             end
+            @constraint(subproblem, d[t] == sum(Qeff[k,t] * k.equivalent for k in plants_j) + sum(P_Swap[r] for r in res) + z_up - z_down)
         end
     end
     return
@@ -304,7 +330,7 @@ function fix_random_variables(subproblem, res, node, T, Ω, P, ::AnticipatoryCon
     return
 end
 
-function ShortTermOptimizationNoAnticipation(
+function ShortTermOptimizationNoAnticipationDevelopment(
     all_res::Array{Reservoir},
     j::Participant,
     O::Participant,
@@ -330,13 +356,13 @@ function ShortTermOptimizationNoAnticipation(
     res = filter(r -> j.participationrate[r] > 0, all_res)
     function subproblem_builder(subproblem::Model, node::Int)
         # Define State, Control and Random Variables
-        add_state_variables(subproblem, res, res_real_initial, res_ind_initial, config)
+        add_state_variables(subproblem, res, T, res_real_initial, res_ind_initial, config)
         add_control_variables(subproblem, res, plants_j, T, config)
         add_random_variables(subproblem, res, T, config)
         # Add Transition Function for reservoir levels, individual reservoirs and propagation of nomination to next stage
         add_transition_function(subproblem, res, node, T, Qref, config)
         # Add constraints for every stage
-        add_stage_constraints(subproblem, res, plants_j, Qref, BIG_M, T, stage_count, node, config)
+        add_stage_constraints(subproblem, res, plants_j, Qref, T, stage_count, node, config)
         # Fix Random Variables for nondeterministic stages
         fix_random_variables(subproblem, res, node, T, Ω, P, config)
         # Add Objective Function 
@@ -374,7 +400,7 @@ function ShortTermOptimizationNoAnticipation(
     return model, rules, nominations
 end
 
-function ShortTermOptimizationAnticipation(
+function ShortTermOptimizationAnticipationDevelopment(
     res::Array{Reservoir},
     j::Participant,
     O::Participant,
@@ -402,13 +428,13 @@ function ShortTermOptimizationAnticipation(
     )
     function subproblem_builder(subproblem::Model, node::Int)
         # Add State, Control and Random Variables
-        add_state_variables(subproblem, res, res_real_initial, res_ind_initial, config)
+        add_state_variables(subproblem, res, T, res_real_initial, res_ind_initial, config)
         add_control_variables(subproblem, res, plants_j, plants_O, T, config)
         add_random_variables(subproblem, res, T, config)
         # Add Transition Function for reservoir levels, individual reservoirs and propagation of nomination to next stage
         add_transition_function(subproblem, res, node, T, Qref, config)
         # Add constraints for every stage
-        add_stage_constraints(subproblem, node, res, plants_j, plants_O, j, O, Qref, BIG_M, T, stage_count, config)
+        add_stage_constraints(subproblem, node, res, plants_j, plants_O, j, O, Qref, T, stage_count, config)
         # Fix Random Variables for nondeterministic stages
         fix_random_variables(subproblem, res, node, T, Ω, P, config)
         # Add Objective Function 
@@ -441,4 +467,43 @@ function ShortTermOptimizationAnticipation(
         push!(nominations, Qnom)
     end
     return model, rules, nominations
+end
+
+# model, rules, nominations = ShortTermOptimizationNoAnticipationDevelopment(
+#     res,
+#     parts[1],
+#     OtherParticipant(parts[1], parts),
+#     parts[1].plants,
+#     10,
+#     7,
+#     3,
+#     24,
+
+# )
+
+function MediumTermOptimizationDevelopment(
+    all_res::Array{Reservoir},
+    j::Participant,
+    O::Participant,
+    plants_j::Array{HydropowerPlant},
+    iteration_count::Int64,
+    stage_count::Int64,
+    scenario_count::Int64,
+    T::Int64,
+    res_real_initial::Dict{Reservoir, Float64},
+    res_ind_initial::Dict{Reservoir, Float64},
+    Ω,
+    P,
+    Qref,
+    mean_price,
+    price_sample;
+    riskmeasure = SDDP.Expectation(),
+    printlevel = 1,
+    optimizer = CPLEX.Optimizer,
+    BIG_M = 5e4,
+    stall_bound = SDDP.BoundStalling(5, 1e-2),
+    config = NonAnticipatoryConfig()
+)
+
+    return
 end
