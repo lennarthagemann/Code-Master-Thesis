@@ -497,25 +497,13 @@ function water_regulation(Qnom::Dict{NamedTuple{(:participant, :reservoir), Tupl
     return Qadj, QadjTot, P_Swap, POver, ΣPOver, MaxEnergy
 end
 
-"""
-Generate n cuts for the concave generation function of hydropowerplant k.
-At the spill reference level, the power plant can only produce at 50% of its equivalent. After that additional water is spilled and doesn't lead to additional power production.
-"""
-function Generation_Cuts(k::HydropowerPlant, n::Int64)
-    x = range(0,k.spill_reference_level,n)
-    effs  = range(k.equivalent, k.equivalent/2, n)
-    y = x .* effs
-    println("The generation curve points to interpolate are as follows: ")
-    for i in 1:n
-        println("(x = $(x[i]), y= $(y[i]))")
-    end
-    return x, y
-end
+
 
 # --------------------------- Optimization Functions from SDDP -------------------------------------- 
 
 """
-Generate cuts for the generation function of hydro units
+Generate n cuts for the concave generation function of hydropowerplant k.
+At the spill reference level, the power plant can only produce at 50% of its equivalent. After that additional water is spilled and doesn't lead to additional power production.
 """
 function Generation_Cuts(k::HydropowerPlant, n::Int64)
     x = range(0,k.spill_reference_level,n)
