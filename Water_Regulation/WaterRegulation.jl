@@ -13,8 +13,8 @@ mutable struct Reservoir
     totalvolume::Float64
     currentvolume::Float64
     maxvolume::Float64
-    upstream_reservoir::Union{Array{Reservoir}, Nothing}
-    downstream_reservoir::Union{Reservoir, Nothing}
+    upstreamreservoir::Union{Array{Reservoir}, Nothing}
+    downstreamreservoir::Union{Reservoir, Nothing}
     function Reservoir(dischargepoint::String, totalvolume::Float64, currentvolume::Float64, maxvolume::Float64)
         if totalvolume < maxvolume
             throw(DomainError("Total Volume of reservoir cannot be smaller than maximum dischargable volume"))
@@ -34,12 +34,12 @@ Update structures in respective reservoirs
 """
 function connect_reservoirs(dr::Reservoir, ur::Array{Reservoir})
     for r in ur
-        if typeof(dr.upstream_reservoir) == Nothing
-            dr.upstream_reservoir = [r]
+        if typeof(dr.upstreamreservoir) == Nothing
+            dr.upstreamreservoir = [r]
         else
-            push!(dr.upstream_reservoir, r)
+            push!(dr.upstreamreservoir, r)
         end
-        r.downstream_reservoir = dr
+        r.downstreamreservoir = dr
     end
 end
 
@@ -49,42 +49,42 @@ as participants can nominate for discharge at any upstream reservoir of their po
 """
 function find_us_reservoir(r::Reservoir)::Array{Reservoir}
     queue::Array{Reservoir} = [r]
-    us_res::Array{Reservoir} = []
+    usres::Array{Reservoir} = []
     # Write while loop that terminates when queue is empty. Add upstream_reservoirs of elements in queue during iteration.
     while !isempty(queue)
-        current_res::Reservoir = popfirst!(queue)
-        @assert (typeof(current_res) == Reservoir)
-        push!(us_res, current_res)
-        if typeof(current_res.upstream_reservoir) != Nothing
-            for res in current_res.upstream_reservoir
+        currentres::Reservoir = popfirst!(queue)
+        @assert (typeof(currentres) == Reservoir)
+        push!(usres, currentres)
+        if typeof(currentres.upstreamreservoir) != Nothing
+            for res in currentres.upstreamreservoir
                 push!(queue, res)
             end 
         end
     end
-    return us_res
+    return usres
 end
 
 function find_ds_reservoirs(r::Reservoir)::Array{Reservoir}
     queue::Array{Reservoir} = [r]
-    ds_res::Array{Reservoir} = []
+    dsres::Array{Reservoir} = []
     while !isempty(queue)
-        current_res::Reservoir = popfirst!(queue)
-        @assert (typeof(current_res) == Reservoir)
-        push!(ds_res, current_res)
-        if typeof(current_res.downstream_reservoir) != Nothing
-            push!(queue, current_res.downstream_reservoir)
+        currentres::Reservoir = popfirst!(queue)
+        @assert (typeof(currentres) == Reservoir)
+        push!(dsres, currentres)
+        if typeof(currentres.downstreamreservoir) != Nothing
+            push!(queue, currentres.downstreamreservoir)
         end
     end
-    return ds_res
+    return dsres
 end
 
 struct HydropowerPlant
     name::String
     reservoir::Reservoir
     equivalent::Float64
-    spill_reference_level::Float64
-    function HydropowerPlant(name::String, reservoir::Reservoir, equivalent::Float64, spill_reference_level::Float64)
-        return new(name, reservoir, equivalent, spill_reference_level)
+    spillreference::Float64
+    function HydropowerPlant(name::String, reservoir::Reservoir, equivalent::Float64, spillreference::Float64)
+        return new(name, reservoir, equivalent, spillreference)
     end
     function HydropowerPlant()
         return new("TestPlant", Reservoir(), 0.1, 1)
@@ -95,7 +95,7 @@ struct Participant
     name::String
     plants::Array{HydropowerPlant}
     participationrate::Dict{Reservoir, Float64} 
-    individual_reservoir::Dict{Reservoir, Float64}
+    individualreservoir::Dict{Reservoir, Float64}
     function calculate_participation(plants, res)
         prate = Dict{Reservoir, Float64}(r => 0.0 for r in res)
         for p in plants
@@ -131,15 +131,15 @@ end
 
 
 function Base.show(io::IO, hp::HydropowerPlant)
-    println(io,"Power Plant: ",  hp.name)
+    println(io, hp.name)
 end
 
 function Base.show(io::IO, r::Reservoir)
-    println(io, "Reservoir with name: ", r.dischargepoint)
+    println(io, r.dischargepoint)
 end
 
 function Base.show(io::IO, p::Participant)
-    println(io, "Name: ", p.name)
+    println(io, p.name)
 end
 
 function Base.show(io::IO, Qadj_All::Dict{Reservoir, Float64})
@@ -175,7 +175,7 @@ Sets the new balance on the participant objects
 """
 function calculate_balance(Qref::Dict{Reservoir, Float64}, Qnom::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}, d::Reservoir)
     for (nom,value) in Qnom
-        nom.part.individual_reservoir[nom.res] += (Qref[nom.res] - value)*24
+        nom.part.individualreservoir[nom.res] += (Qref[nom.res] - value)*24
     end
 end
 
@@ -206,7 +206,7 @@ function adjust_flow!(
             partSum = sum(n.participant.participationrate[r] for n in filter(x -> x.reservoir == r ,keys(Qnom)))
             for (nom,value) in filter(kv -> kv[1].reservoir == r, Qnom)
                 QnomO = sum(val for (key,val) in filter(x -> x[1].reservoir == r ,Qnom)) - value
-                if Qadj[r] > Qmaxr[r] && !(nom.participant.individual_reservoir[nom.reservoir]< 0) 
+                if Qadj[r] > Qmaxr[r] && !(nom.participant.individualreservoir[nom.reservoir]< 0) 
                     partj = nom.part.participationrate[r]
                     partO = partSum - partj
                     @info "The participant $(nom.participant.name) has a negative balance at $(r.dischargepoint) and his nomination of $(nom.value)has to be adjusted to $((Qmaxr[r] * partSum - QnomO*partO)/partj) \n"
@@ -261,8 +261,8 @@ Every participant has a field balance, it is the updated by the difference of no
 """
 function update_ind_reservoir(Qnom::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}, Qref::Dict{Reservoir, Float64})
     for (nom, value) in Qnom
-        if haskey(nom.participant.individual_reservoir, nom.reservoir)
-            nom.participant.individual_reservoir[nom.reservoir] += (Qref[nom.reservoir] - value)*24
+        if haskey(nom.participant.individualreservoir, nom.reservoir)
+            nom.participant.individualreservoir[nom.reservoir] += (Qref[nom.reservoir] - value)*24
         end
     end
 end
@@ -281,10 +281,10 @@ function read_data(filename::String)
         connect_reservoirs(resdict[lr], [resdict[r] for r in ur])
     end
     # Unpack HydropowerPlant
-    plants = [HydropowerPlant(p["name"], resdict[p["reservoir"]], float(p["equivalent"]), float(p["spill_reference_level"])) for p in d["HydropowerPlants"]]
+    plants = [HydropowerPlant(p["name"], resdict[p["reservoir"]], float(p["equivalent"]), float(p["spillreference"])) for p in d["HydropowerPlants"]]
     # Unpack Participants
     plantdict = Dict(p.name => p for p in plants)
-    parts = [Participant(part["name"], [plantdict[pname] for pname in part["plants"]],  Dict(resdict[k] => float(v) for (k,v) in part["individual_reservoir"]), res) for part in d["Participants"]]
+    parts = [Participant(part["name"], [plantdict[pname] for pname in part["plants"]],  Dict(resdict[k] => float(v) for (k,v) in part["individualreservoir"]), res) for part in d["Participants"]]
     # Set participation rate to zero for missing reservoirs in the participants participation rate.
     for r in res
         for p in parts
@@ -358,7 +358,7 @@ function CalculateQmax(QnomTot::Dict{NamedTuple{(:participant, :reservoir), Tupl
     for (nom, value) in QnomTot
         for p in nom.participant.plants
             if p.reservoir == nom.reservoir
-                Qmax[p] =  max(min(p.spill_reference_level, Qref[p.reservoir]), value)
+                Qmax[p] =  max(min(p.spillreference, Qref[p.reservoir]), value)
             end
         end
     end
@@ -371,7 +371,7 @@ Maximum compensated energy, real amount of energy lost through spillage
 function Calculate_Ersmax(plants::Array{HydropowerPlant}, QadjTot::Dict{Reservoir, Float64})::Dict{HydropowerPlant, Float64}
     Ersmax = Dict{HydropowerPlant, Float64}()
     for k in filter(plant -> plant in plants, plants)
-        Ersmax[k] = max((QadjTot[k.reservoir] - k.spill_reference_level) * k.equivalent, 0)
+        Ersmax[k] = max((QadjTot[k.reservoir] - k.spillreference) * k.equivalent, 0)
     end
     return Ersmax
 end
@@ -506,7 +506,7 @@ Generate n cuts for the concave generation function of hydropowerplant k.
 At the spill reference level, the power plant can only produce at 50% of its equivalent. After that additional water is spilled and doesn't lead to additional power production.
 """
 function Generation_Cuts(k::HydropowerPlant, n::Int64)
-    x = range(0,k.spill_reference_level,n)
+    x = range(0,k.spillreference,n)
     effs  = range(k.equivalent, k.equivalent/2, n)
     y = x .* effs
     # Get Slopes and y value of origin to obtain cut coefficients
@@ -679,13 +679,13 @@ function add_stage_constraints(subproblem::Model, res::Vector{Reservoir}, plants
             @constraint(subproblem, !BALANCE_INDICATOR[r] => {0 <= res_ind[r].in})
         end
         for k in plants_j
-            # @constraint(subproblem, sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spill_reference_level + BIG_M * (1 - BALANCE_INDICATOR[k.reservoir]))
-            @constraint(subproblem, BALANCE_INDICATOR[k.reservoir] => {sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spill_reference_level})
+            # @constraint(subproblem, sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spillreference + BIG_M * (1 - BALANCE_INDICATOR[k.reservoir]))
+            @constraint(subproblem, BALANCE_INDICATOR[k.reservoir] => {sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spillreference})
         end
         for t in 1:T
             for k in plants_j
                 @constraint(subproblem, Qeff[k, t] <= sum(Qreal[r_up, t] for r_up in find_us_reservoir(k.reservoir)))
-                @constraint(subproblem, Qeff[k, t] <= k.spill_reference_level)
+                @constraint(subproblem, Qeff[k, t] <= k.spillreference)
             end
         end
     end
@@ -707,8 +707,8 @@ function add_stage_constraints(subproblem::Model, node::Int64, res::Vector{Reser
     Qnom_O = subproblem[:Qnom_O]
     if node == 1
         for k in plants_j
-            # @constraint(subproblem, sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spill_reference_level + BIG_M * (1 - BALANCE_INDICATOR[k.reservoir]))
-            @constraint(subproblem, BALANCE_INDICATOR[k.reservoir] => {sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spill_reference_level})
+            # @constraint(subproblem, sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spillreference + BIG_M * (1 - BALANCE_INDICATOR[k.reservoir]))
+            @constraint(subproblem, BALANCE_INDICATOR[k.reservoir] => {sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spillreference})
         end
         for r in res
             # Constraints
@@ -729,13 +729,13 @@ function add_stage_constraints(subproblem::Model, node::Int64, res::Vector{Reser
             @constraint(subproblem, 0 <= res_ind[r].in + BIG_M * BALANCE_INDICATOR[r])
         end
         for k in plants_O
-            @constraint(subproblem, P_Over[k] >=  (sum(Qadj[r] for r in find_us_reservoir(k.reservoir)) - k.spill_reference_level) * k.equivalent)
-            @constraint(subproblem, sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spill_reference_level + BIG_M * (1 - BALANCE_INDICATOR[k.reservoir]))
+            @constraint(subproblem, P_Over[k] >=  (sum(Qadj[r] for r in find_us_reservoir(k.reservoir)) - k.spillreference) * k.equivalent)
+            @constraint(subproblem, sum(Qnom_change[r_up] for r_up in find_us_reservoir(k.reservoir)) <= k.spillreference + BIG_M * (1 - BALANCE_INDICATOR[k.reservoir]))
         end
         for t in 1:T
             for k in plants_j
                 @constraint(subproblem, Qeff[k, t] <= sum(Qreal[r_up, t] for r_up in find_us_reservoir(k.reservoir)))
-                @constraint(subproblem, Qeff[k, t] <= k.spill_reference_level)
+                @constraint(subproblem, Qeff[k, t] <= k.spillreference)
             end
         end
     end
@@ -942,7 +942,7 @@ function OptimizationAfterAdjustment(res::Array{Reservoir}, plants_j::Array{Hydr
         @constraint(model, sum(Qeff[k, t] for k in filter(x -> x.reservoir in find_ds_reservoirs(r), plants_j)) >= - P_Swap[r])
         for k in plants_j
             @constraint(model, Qeff[k, t] <= sum(Qreal[r_up, t] for r_up in find_us_reservoir(k.reservoir)))
-            @constraint(model, Qeff[k, t] <= k.spill_reference_level)
+            @constraint(model, Qeff[k, t] <= k.spillreference)
         end
     end
     # Objective -> Maximize revenue

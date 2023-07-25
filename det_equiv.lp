@@ -1,160 +1,75 @@
 minimize
-obj: 3.333333333333333 y_1_#2 - 3.333333333333333 balancing_1_#2 + 6.666666666666666 y_2_#2_1 - 6.666666666666666 balancing_2_#2_1 + 10 y_3_#2_2 - 10 balancing_3_#2_2
+obj: 0.656 y_1_#2 - 0.1 deltastart_Flasjo_,1_#2 - 10 zup_1_#2 - 10 zdown_1_#2
 subject to
-c1_1: 1 x_1__out#1 - 1 x_2__out#1 <= 0
-c2_1: 1 x_2__out#1 - 1 x_3__out#1 <= 0
-c3_1: 1 x_3__out#1 - 1 x_4__out#1 <= 0
-c4_1: 1 x_1__out#2 - 1 x_2__out#2 <= 0
-c5_1: 1 x_2__out#2 - 1 x_3__out#2 <= 0
-c6_1: 1 x_3__out#2 - 1 x_4__out#2 <= 0
-c7_1: 1 x_1__out#2_1 - 1 x_2__out#2_1 <= 0
-c8_1: 1 x_2__out#2_1 - 1 x_3__out#2_1 <= 0
-c9_1: 1 x_3__out#2_1 - 1 x_4__out#2_1 <= 0
-c10_1: 1 x_1__out#2_2 - 1 x_2__out#2_2 <= 0
-c11_1: 1 x_2__out#2_2 - 1 x_3__out#2_2 <= 0
-c12_1: 1 x_3__out#2_2 - 1 x_4__out#2_2 <= 0
-c1: -1 x_1__in#1 - 1 x_2__in#1 + 1 y_1_#1 = 0
-c2: -1 x_2__in#1 - 1 x_3__in#1 + 1 y_2_#1 = 0
-c3: -1 x_3__in#1 - 1 x_4__in#1 + 1 y_3_#1 = 0
-c4: 1 W_in#1 - 1 W_out#1 = 0
-c5: 1 y_1_#2 - 0.5 x_1__in#2 - 0.5 x_2__in#2 = 0
-c6: 1 y_2_#2 = 0
-c7: 1 y_3_#2 = 0
-c8: 1 y_1_#2 - 1 w_1_#2 - 1 balancing_1_#2 = 0
-c9:  = 0
-c10:  = 0
-c11: 1 W_out#2 + 1 w_1_#2 - 1 W_in#2 = 0
-c12: 1 y_1_#2_1 = 0
-c13: 1 y_2_#2_1 - 0.5 x_2__in#2_1 - 0.5 x_3__in#2_1 = 0
-c14: 1 y_3_#2_1 = 0
-c15:  = 0
-c16: 1 y_2_#2_1 - 1 w_2_#2_1 - 1 balancing_2_#2_1 = 0
-c17:  = 0
-c18: 1 W_out#2_1 - 1 W_in#2_1 = 0
-c19: 1 y_1_#2_2 = 0
-c20: 1 y_2_#2_2 = 0
-c21: 1 y_3_#2_2 - 0.5 x_3__in#2_2 - 0.5 x_4__in#2_2 = 0
-c22:  = 0
-c23:  = 0
-c24: 1 y_3_#2_2 - 1 w_3_#2_2 - 1 balancing_3_#2_2 = 0
-c25: 1 W_out#2_2 - 1 W_in#2_2 = 0
-c26: 1 x_3__out#1 - 1 x_3__in#2 = 0
-c27: 1 x_4__out#1 - 1 x_4__in#2 = 0
-c28: 1 W_out#1 - 1 W_in#2 = 0
-c29: 1 x_1__out#1 - 1 x_1__in#2 = 0
-c30: 1 x_2__out#1 - 1 x_2__in#2 = 0
-c31: 1 x_3__out#1 - 1 x_3__in#2_1 = 0
-c32: 1 x_4__out#1 - 1 x_4__in#2_1 = 0
-c33: 1 W_out#1 - 1 W_in#2_1 = 0
-c34: 1 x_1__out#1 - 1 x_1__in#2_1 = 0
-c35: 1 x_2__out#1 - 1 x_2__in#2_1 = 0
-c36: 1 x_3__out#1 - 1 x_3__in#2_2 = 0
-c37: 1 x_4__out#1 - 1 x_4__in#2_2 = 0
-c38: 1 W_out#1 - 1 W_in#2_2 = 0
-c39: 1 x_1__out#1 - 1 x_1__in#2_2 = 0
-c40: 1 x_2__out#1 - 1 x_2__in#2_2 = 0
+c1_1: 1 xchange_1,1_#1 - 1 xchange_2,1_#1 <= 0
+c2_1: -1 lreal_Flasjon___in#1 + 1 Qnomchange_Flasjon__#1 <= 0
+c3_1: 1 xchange_1,1_#2 - 1 xchange_2,1_#2 <= 0
+c4_1: -0.31 Qreal_Flasjon_,1_#2 + 1 w_Flasjo_,1_#2 <= 0
+c5_1: -1 w_Flasjo_,1_#2 <= 0
+c6_1: 1 w_Flasjo_,1_#2 - 0.0899 u_Flasjo_,1_#2 <= 0
+c1: -1 lreal_Flasjon___in#1 + 1 lreal_Flasjon___out#1 = 0
+c2: -1 Qnomchange_Flasjon__#1 + 1 Qnom_Flasjon___out#1 = 0
+c3: -1 xchange_1,1_#1 + 1 x_1,1__out#1 = 0
+c4: -1 xchange_2,1_#1 + 1 x_2,1__out#1 = 0
+c5: -1 Qinflow_Flasjon__#2 + 1 lreal_Flasjon___out#2 - 1 lreal_Flasjon___in#2 + 1 Qnom_Flasjon___in#2 = 0
+c6: -1 Qnomchange_Flasjon__#2 + 1 Qnom_Flasjon___out#2 = 0
+c7: -1 xchange_1,1_#2 + 1 x_1,1__out#2 = 0
+c8: -1 xchange_2,1_#2 + 1 x_2,1__out#2 = 0
+c9: 1 Qreal_Flasjon_,1_#2 - 1 Qnom_Flasjon___in#2 = 0
+c10: 1 y_1_#2 - 0.344 x_1,1__in#2 - 0.656 x_2,1__in#2 = 0
+c11: 1 x_2,1__out#1 - 1 x_2,1__in#2 = 0
+c12: 1 lreal_Flasjon___out#1 - 1 lreal_Flasjon___in#2 = 0
+c13: 1 x_1,1__out#1 - 1 x_1,1__in#2 = 0
+c14: 1 Qnom_Flasjon___out#1 - 1 Qnom_Flasjon___in#2 = 0
 Bounds
-x_1__out#1 <= 50
-x_2__out#1 <= 50
-x_3__out#1 <= 50
-x_4__out#1 <= 50
-W_out#1 <= 100
-x_1__out#2 <= 50
-x_2__out#2 <= 50
-x_3__out#2 <= 50
-x_4__out#2 <= 50
-W_out#2 <= 100
+lreal_Flasjon___out#1 <= 40000
+xchange_1,1_#1 <= 0.0899
+xchange_2,1_#1 <= 0.0899
+y_1_#1 <= 0.0899
+lreal_Flasjon___out#2 <= 40000
+xchange_1,1_#2 <= 0.0899
+xchange_2,1_#2 <= 0.0899
+y_1_#2 <= 0.0899
 __20_#2 <= 0
-x_1__out#2_1 <= 50
-x_2__out#2_1 <= 50
-x_3__out#2_1 <= 50
-x_4__out#2_1 <= 50
-W_out#2_1 <= 100
-__20_#2_1 <= 0
-x_1__out#2_2 <= 50
-x_2__out#2_2 <= 50
-x_3__out#2_2 <= 50
-x_4__out#2_2 <= 50
-W_out#2_2 <= 100
-__20_#2_2 <= 0
+Qnom_Flasjon___out#1 <= 10
+x_1,1__out#1 <= 0.0899
+x_2,1__out#1 <= 0.0899
+w_Flasjo_,1_#1 <= 0.0899
 __20_#1 <= 100000
-x_1__out#1 >= 0
-x_2__out#1 >= 0
-x_3__out#1 >= 0
-x_4__out#1 >= 0
-W_out#1 >= 0
+Qnom_Flasjon___out#2 <= 10
+x_1,1__out#2 <= 0.0899
+x_2,1__out#2 <= 0.0899
+w_Flasjo_,1_#2 <= 0.0899
+lreal_Flasjon___out#1 >= 0
+zup_1_#1 >= 0
+zdown_1_#1 >= 0
+Qnomchange_Flasjon__#1 >= 0
+xchange_1,1_#1 >= 0
+xchange_2,1_#1 >= 0
+Qreal_Flasjon_,1_#1 >= 0
 y_1_#1 >= 0
-y_2_#1 >= 0
-y_3_#1 >= 0
-w_1_#1 >= 0
-w_2_#1 >= 0
-w_3_#1 >= 0
-balancing_1_#1 >= 0
-balancing_2_#1 >= 0
-balancing_3_#1 >= 0
-x_1__out#2 >= 0
-x_2__out#2 >= 0
-x_3__out#2 >= 0
-x_4__out#2 >= 0
-W_out#2 >= 0
+lreal_Flasjon___out#2 >= 0
+zup_1_#2 >= 0
+zdown_1_#2 >= 0
+Qnomchange_Flasjon__#2 >= 0
+xchange_1,1_#2 >= 0
+xchange_2,1_#2 >= 0
+Qreal_Flasjon_,1_#2 >= 0
 y_1_#2 >= 0
-y_2_#2 >= 0
-y_3_#2 >= 0
-w_1_#2 >= 0
-w_2_#2 >= 0
-w_3_#2 >= 0
-balancing_1_#2 >= 0
-balancing_2_#2 >= 0
-balancing_3_#2 >= 0
 __20_#2 >= 0
-x_1__out#2_1 >= 0
-x_2__out#2_1 >= 0
-x_3__out#2_1 >= 0
-x_4__out#2_1 >= 0
-W_out#2_1 >= 0
-y_1_#2_1 >= 0
-y_2_#2_1 >= 0
-y_3_#2_1 >= 0
-w_1_#2_1 >= 0
-w_2_#2_1 >= 0
-w_3_#2_1 >= 0
-balancing_1_#2_1 >= 0
-balancing_2_#2_1 >= 0
-balancing_3_#2_1 >= 0
-__20_#2_1 >= 0
-x_1__out#2_2 >= 0
-x_2__out#2_2 >= 0
-x_3__out#2_2 >= 0
-x_4__out#2_2 >= 0
-W_out#2_2 >= 0
-y_1_#2_2 >= 0
-y_2_#2_2 >= 0
-y_3_#2_2 >= 0
-w_1_#2_2 >= 0
-w_2_#2_2 >= 0
-w_3_#2_2 >= 0
-balancing_1_#2_2 >= 0
-balancing_2_#2_2 >= 0
-balancing_3_#2_2 >= 0
-__20_#2_2 >= 0
-x_1__in#1 = 0
-x_2__in#1 = 0
-x_3__in#1 = 0
-x_4__in#1 = 0
-W_in#1 = 80
-x_1__in#2 free
-x_2__in#2 free
-x_3__in#2 free
-x_4__in#2 free
-W_in#2 free
-x_1__in#2_1 free
-x_2__in#2_1 free
-x_3__in#2_1 free
-x_4__in#2_1 free
-W_in#2_1 free
-x_1__in#2_2 free
-x_2__in#2_2 free
-x_3__in#2_2 free
-x_4__in#2_2 free
-W_in#2_2 free
+lreal_Flasjon___in#1 = 35000
+Qnom_Flasjon___in#1 = 0
+x_1,1__in#1 = 0
+x_2,1__in#1 = 0
+Qinflow_Flasjon__#2 = 0
+Qinflow_Flasjon__#1 free
+lreal_Flasjon___in#2 free
+Qnom_Flasjon___in#2 free
+x_1,1__in#2 free
+x_2,1__in#2 free
+Binary
+deltastart_Flasjo_,1_#1
+u_Flasjo_,1_#1
+deltastart_Flasjo_,1_#2
+u_Flasjo_,1_#2
 End

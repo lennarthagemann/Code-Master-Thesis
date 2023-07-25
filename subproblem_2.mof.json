@@ -6,6 +6,7 @@
   },
   "variables": [
     {
+<<<<<<< HEAD
       "name": "x[1]_in"
     },
     {
@@ -13,6 +14,15 @@
     },
     {
       "name": "x[3]_in"
+=======
+      "name": "lreal[Flasjön\n]_in"
+    },
+    {
+      "name": "lind[Flasjön\n]_in"
+    },
+    {
+      "name": "Qnom[Flasjön\n]_in"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
     },
     {
       "name": "x[4]_in"
@@ -21,6 +31,7 @@
       "name": "W_in"
     },
     {
+<<<<<<< HEAD
       "name": "x[1]_out"
     },
     {
@@ -90,29 +101,163 @@
   "constraints": [
     {
       "name": "clearing[1]",
+=======
+      "name": "Qinflow[Flasjön\n]"
+    },
+    {
+      "name": "lreal[Flasjön\n]_out"
+    },
+    {
+      "name": "zup[1]"
+    },
+    {
+      "name": "zdown[1]"
+    },
+    {
+      "name": "Qnomchange[Flasjön\n]"
+    },
+    {
+      "name": "xchange[1,1]"
+    },
+    {
+      "name": "xchange[2,1]"
+    },
+    {
+      "name": "Qreal[Flasjön\n,1]"
+    },
+    {
+      "name": "y[1]"
+    },
+    {
+      "name": "x15"
+    },
+    {
+      "name": "deltastart[Flasjö\n,1]"
+    },
+    {
+      "name": "deltaind[Flasjön\n]"
+    },
+    {
+      "name": "u[Flasjö\n,1]"
+    },
+    {
+      "name": "lind[Flasjön\n]_out"
+    },
+    {
+      "name": "Qnom[Flasjön\n]_out"
+    },
+    {
+      "name": "x[1,1]_out"
+    },
+    {
+      "name": "x[2,1]_out"
+    },
+    {
+      "name": "w[Flasjö\n,1]"
+    }
+  ],
+  "objective": {
+    "sense": "max",
+    "function": {
+      "type": "ScalarAffineFunction",
+      "terms": [
+        {
+          "coefficient": 0.321,
+          "variable": "y[1]"
+        },
+        {
+          "coefficient": -0.1,
+          "variable": "deltastart[Flasjö\n,1]"
+        },
+        {
+          "coefficient": -1.0,
+          "variable": "zup[1]"
+        },
+        {
+          "coefficient": -1.0,
+          "variable": "zdown[1]"
+        },
+        {
+          "coefficient": 1.0,
+          "variable": "x15"
+        }
+      ],
+      "constant": 0.0
+    }
+  },
+  "constraints": [
+    {
+      "name": "c1",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
+            "coefficient": -1.0,
+            "variable": "lreal[Flasjön\n]_in"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Qnom[Flasjön\n]_in"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "Qinflow[Flasjön\n]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "lreal[Flasjön\n]_out"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "c2",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.0,
+            "variable": "lind[Flasjön\n]_in"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Qnom[Flasjön\n]_in"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "lind[Flasjön\n]_out"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 1.0
+      }
+    },
+    {
+      "name": "c3",
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+<<<<<<< HEAD
             "coefficient": 1.0,
             "variable": "y[1]"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
-    {
-      "name": "clearing[2]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
+=======
+            "coefficient": -1.0,
+            "variable": "Qnomchange[Flasjön\n]"
+          },
           {
             "coefficient": 1.0,
-            "variable": "y[2]"
+            "variable": "Qnom[Flasjön\n]_out"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
           }
         ],
         "constant": 0.0
@@ -123,11 +268,46 @@
       }
     },
     {
-      "name": "clearing[3]",
+<<<<<<< HEAD
+      "name": "clearing[2]",
+=======
+      "name": "c4",
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
+<<<<<<< HEAD
+            "coefficient": 1.0,
+            "variable": "y[2]"
+=======
+            "coefficient": -1.0,
+            "variable": "xchange[1,1]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x[1,1]_out"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+<<<<<<< HEAD
+      "name": "clearing[3]",
+=======
+      "name": "c5",
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+<<<<<<< HEAD
             "coefficient": -0.5,
             "variable": "x[3]_in"
           },
@@ -138,6 +318,14 @@
           {
             "coefficient": 1.0,
             "variable": "y[3]"
+=======
+            "coefficient": -1.0,
+            "variable": "xchange[2,1]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x[2,1]_out"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
           }
         ],
         "constant": 0.0
@@ -148,35 +336,80 @@
       }
     },
     {
+<<<<<<< HEAD
       "name": "production[1]",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
-    {
-      "name": "production[2]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
-    {
-      "name": "production[3]",
+=======
+      "name": "c6",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
+            "coefficient": -1.0,
+            "variable": "zup[1]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "zdown[1]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "y[1]"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "w[Flasjö\n,1]"
+          }
+        ],
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+<<<<<<< HEAD
+      "name": "production[2]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [],
+=======
+      "name": "c7",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.0,
+            "variable": "Qnom[Flasjön\n]_in"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Qreal[Flasjön\n,1]"
+          }
+        ],
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+<<<<<<< HEAD
+      "name": "production[3]",
+=======
+      "name": "c8",
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+<<<<<<< HEAD
             "coefficient": 1.0,
             "variable": "y[3]"
           },
@@ -187,6 +420,18 @@
           {
             "coefficient": 1.0,
             "variable": "balancing[3]"
+=======
+            "coefficient": -0.679,
+            "variable": "x[1,1]_in"
+          },
+          {
+            "coefficient": -0.321,
+            "variable": "x[2,1]_in"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "y[1]"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
           }
         ],
         "constant": 0.0
@@ -197,17 +442,34 @@
       }
     },
     {
+<<<<<<< HEAD
       "name": "balance",
+=======
+      "name": "c9",
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
+<<<<<<< HEAD
             "coefficient": -1.0,
             "variable": "W_in"
           },
           {
             "coefficient": 1.0,
             "variable": "W_out"
+=======
+            "coefficient": -0.748,
+            "variable": "x[1,1]_in"
+          },
+          {
+            "coefficient": -0.252,
+            "variable": "x[2,1]_in"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "y[1]"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
           }
         ],
         "constant": 0.0
@@ -218,59 +480,154 @@
       }
     },
     {
+<<<<<<< HEAD
       "name": "increasing[1]",
+=======
+      "name": "c10",
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
+<<<<<<< HEAD
             "coefficient": 1.0,
             "variable": "x[1]_out"
           },
           {
             "coefficient": -1.0,
             "variable": "x[2]_out"
+=======
+            "coefficient": -0.679,
+            "variable": "x[1,1]_in"
+          },
+          {
+            "coefficient": -0.321,
+            "variable": "x[2,1]_in"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "y[1]"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
           }
         ],
         "constant": 0.0
       },
       "set": {
+<<<<<<< HEAD
         "type": "LessThan",
         "upper": 0.0
       }
     },
     {
       "name": "increasing[2]",
+=======
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "c11",
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
+<<<<<<< HEAD
             "coefficient": 1.0,
             "variable": "x[2]_out"
           },
           {
             "coefficient": -1.0,
             "variable": "x[3]_out"
+=======
+            "coefficient": -0.748,
+            "variable": "x[1,1]_in"
+          },
+          {
+            "coefficient": -0.252,
+            "variable": "x[2,1]_in"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "y[1]"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
           }
         ],
         "constant": 0.0
       },
       "set": {
+<<<<<<< HEAD
         "type": "LessThan",
         "upper": 0.0
       }
     },
     {
       "name": "increasing[3]",
+=======
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "c12",
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
+<<<<<<< HEAD
             "coefficient": 1.0,
             "variable": "x[3]_out"
           },
           {
             "coefficient": -1.0,
             "variable": "x[4]_out"
+=======
+            "coefficient": -0.679,
+            "variable": "x[1,1]_in"
+          },
+          {
+            "coefficient": -0.321,
+            "variable": "x[2,1]_in"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "y[1]"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+<<<<<<< HEAD
+        "type": "LessThan",
+        "upper": 0.0
+=======
+        "type": "EqualTo",
+        "value": 0.0
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
+      }
+    },
+    {
+      "name": "c1_1",
+      "function": {
+<<<<<<< HEAD
+        "type": "Variable",
+        "name": "x[1]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+=======
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 1.0,
+            "variable": "xchange[1,1]"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "xchange[2,1]"
           }
         ],
         "constant": 0.0
@@ -278,112 +635,211 @@
       "set": {
         "type": "LessThan",
         "upper": 0.0
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       }
     },
     {
+      "name": "c2_1",
       "function": {
-        "type": "Variable",
-        "name": "x[1]_in"
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
-    {
-      "function": {
+<<<<<<< HEAD
         "type": "Variable",
         "name": "x[2]_in"
       },
       "set": {
         "type": "EqualTo",
         "value": 0.0
+=======
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -0.31,
+            "variable": "Qreal[Flasjön\n,1]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "w[Flasjö\n,1]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 0.0
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       }
     },
     {
+      "name": "c3_1",
       "function": {
+<<<<<<< HEAD
         "type": "Variable",
         "name": "x[3]_in"
       },
       "set": {
         "type": "EqualTo",
         "value": 50.0
+=======
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.0,
+            "variable": "w[Flasjö\n,1]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 0.0
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       }
     },
     {
+      "name": "c4_1",
       "function": {
+<<<<<<< HEAD
         "type": "Variable",
         "name": "x[4]_in"
       },
       "set": {
         "type": "EqualTo",
         "value": 50.0
+=======
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -0.0899,
+            "variable": "u[Flasjö\n,1]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "w[Flasjö\n,1]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 0.0
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       }
     },
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "W_in"
       },
       "set": {
         "type": "EqualTo",
         "value": 80.0
+=======
+        "name": "lreal[Flasjön\n]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 35000.0
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       }
     },
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "x[1]_out"
       },
       "set": {
         "type": "GreaterThan",
         "lower": 0.0
+=======
+        "name": "lind[Flasjön\n]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 35000.0
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       }
     },
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "x[2]_out"
       },
       "set": {
         "type": "GreaterThan",
         "lower": 0.0
+=======
+        "name": "Qnom[Flasjön\n]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": -0.0
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       }
     },
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "x[3]_out"
       },
       "set": {
         "type": "GreaterThan",
         "lower": 0.0
+=======
+        "name": "x[1,1]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       }
     },
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "x[4]_out"
       },
       "set": {
         "type": "GreaterThan",
         "lower": 0.0
+=======
+        "name": "x[2,1]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0899
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       }
     },
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "W_out"
       },
       "set": {
         "type": "GreaterThan",
         "lower": 0.0
+=======
+        "name": "Qinflow[Flasjön\n]"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       }
     },
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "y[1]"
+=======
+        "name": "lreal[Flasjön\n]_out"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       },
       "set": {
         "type": "GreaterThan",
@@ -393,7 +849,11 @@
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "y[2]"
+=======
+        "name": "zup[1]"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       },
       "set": {
         "type": "GreaterThan",
@@ -403,7 +863,11 @@
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "y[3]"
+=======
+        "name": "zdown[1]"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       },
       "set": {
         "type": "GreaterThan",
@@ -413,7 +877,11 @@
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "w[1]"
+=======
+        "name": "Qnomchange[Flasjön\n]"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       },
       "set": {
         "type": "GreaterThan",
@@ -423,7 +891,11 @@
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "w[2]"
+=======
+        "name": "xchange[1,1]"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       },
       "set": {
         "type": "GreaterThan",
@@ -433,7 +905,11 @@
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "w[3]"
+=======
+        "name": "xchange[2,1]"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       },
       "set": {
         "type": "GreaterThan",
@@ -443,7 +919,11 @@
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "balancing[1]"
+=======
+        "name": "Qreal[Flasjön\n,1]"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       },
       "set": {
         "type": "GreaterThan",
@@ -453,7 +933,11 @@
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "balancing[2]"
+=======
+        "name": "y[1]"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       },
       "set": {
         "type": "GreaterThan",
@@ -463,7 +947,11 @@
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "balancing[3]"
+=======
+        "name": "x15"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       },
       "set": {
         "type": "GreaterThan",
@@ -473,47 +961,83 @@
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "x20"
       },
       "set": {
         "type": "GreaterThan",
         "lower": 0.0
+=======
+        "name": "lreal[Flasjön\n]_out"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 40000.0
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       }
     },
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "x[1]_out"
       },
       "set": {
         "type": "LessThan",
         "upper": 50.0
+=======
+        "name": "xchange[1,1]"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 0.0899
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       }
     },
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "x[2]_out"
       },
       "set": {
         "type": "LessThan",
         "upper": 50.0
+=======
+        "name": "xchange[2,1]"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 0.0899
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       }
     },
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "x[3]_out"
       },
       "set": {
         "type": "LessThan",
         "upper": 50.0
+=======
+        "name": "x15"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 0.0
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       }
     },
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "x[4]_out"
+=======
+        "name": "deltastart[Flasjö\n,1]"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       },
       "set": {
         "type": "LessThan",
@@ -523,7 +1047,11 @@
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "W_out"
+=======
+        "name": "deltaind[Flasjön\n]"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       },
       "set": {
         "type": "LessThan",
@@ -533,11 +1061,86 @@
     {
       "function": {
         "type": "Variable",
+<<<<<<< HEAD
         "name": "x20"
       },
       "set": {
         "type": "LessThan",
         "upper": 0.0
+=======
+        "name": "u[Flasjö\n,1]"
+      },
+      "set": {
+        "type": "ZeroOne"
+      }
+    },
+    {
+      "name": "c1_2",
+      "function": {
+        "type": "VectorAffineFunction",
+        "terms": [
+          {
+            "output_index": 1,
+            "scalar_term": {
+              "coefficient": 1.0,
+              "variable": "deltaind[Flasjön\n]"
+            }
+          },
+          {
+            "output_index": 2,
+            "scalar_term": {
+              "coefficient": 1.0,
+              "variable": "Qnomchange[Flasjön\n]"
+            }
+          }
+        ],
+        "constants": [
+          0.0,
+          0.0
+        ]
+      },
+      "set": {
+        "type": "Indicator",
+        "set": {
+          "type": "LessThan",
+          "upper": 1.0
+        },
+        "activate_on": "one"
+      }
+    },
+    {
+      "name": "c1_3",
+      "function": {
+        "type": "VectorAffineFunction",
+        "terms": [
+          {
+            "output_index": 1,
+            "scalar_term": {
+              "coefficient": 1.0,
+              "variable": "deltaind[Flasjön\n]"
+            }
+          },
+          {
+            "output_index": 2,
+            "scalar_term": {
+              "coefficient": -1.0,
+              "variable": "lind[Flasjön\n]_in"
+            }
+          }
+        ],
+        "constants": [
+          0.0,
+          0.0
+        ]
+      },
+      "set": {
+        "type": "Indicator",
+        "set": {
+          "type": "LessThan",
+          "upper": 0.0
+        },
+        "activate_on": "zero"
+>>>>>>> d3018be6a87674a024bffcd6ff3e2ae4d9f1dd05
       }
     }
   ]
