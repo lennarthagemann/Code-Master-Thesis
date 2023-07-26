@@ -1,0 +1,1117 @@
+{
+  "name": "MathOptFormat Model",
+  "version": {
+    "major": 1,
+    "minor": 4
+  },
+  "variables": [
+    {
+      "name": "x[1]_in"
+    },
+    {
+      "name": "x[2]_in"
+    },
+    {
+      "name": "x[3]_in"
+    },
+    {
+      "name": "x[4]_in"
+    },
+    {
+      "name": "W_in"
+    },
+    {
+      "name": "filling"
+    },
+    {
+      "name": "x[1]_out"
+    },
+    {
+      "name": "x[2]_out"
+    },
+    {
+      "name": "x[3]_out"
+    },
+    {
+      "name": "x[4]_out"
+    },
+    {
+      "name": "W_out"
+    },
+    {
+      "name": "y[1]"
+    },
+    {
+      "name": "y[2]"
+    },
+    {
+      "name": "y[3]"
+    },
+    {
+      "name": "w[1]"
+    },
+    {
+      "name": "w[2]"
+    },
+    {
+      "name": "w[3]"
+    },
+    {
+      "name": "balancing[1]"
+    },
+    {
+      "name": "balancing[2]"
+    },
+    {
+      "name": "balancing[3]"
+    },
+    {
+      "name": "spoil"
+    },
+    {
+      "name": "x22"
+    }
+  ],
+  "objective": {
+    "sense": "max",
+    "function": {
+      "type": "ScalarAffineFunction",
+      "terms": [
+        {
+          "coefficient": 10.0,
+          "variable": "y[1]"
+        },
+        {
+          "coefficient": -12.0,
+          "variable": "balancing[1]"
+        },
+        {
+          "coefficient": 1.0,
+          "variable": "x22"
+        }
+      ],
+      "constant": 0.0
+    }
+  },
+  "constraints": [
+    {
+      "name": "clearing[1]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -0.5,
+            "variable": "x[1]_in"
+          },
+          {
+            "coefficient": -0.5,
+            "variable": "x[2]_in"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "y[1]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "clearing[2]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "clearing[3]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "production[1]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 1.0,
+            "variable": "y[1]"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "w[1]"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "balancing[1]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "production[2]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "production[3]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "balance",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.0,
+            "variable": "W_in"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "filling"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "W_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "w[1]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "spoil"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "increasing[1]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 1.0,
+            "variable": "x[1]_out"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "x[2]_out"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 0.0
+      }
+    },
+    {
+      "name": "increasing[2]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 1.0,
+            "variable": "x[2]_out"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "x[3]_out"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 0.0
+      }
+    },
+    {
+      "name": "increasing[3]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 1.0,
+            "variable": "x[3]_out"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "x[4]_out"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 0.0
+      }
+    },
+    {
+      "name": "c4",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.6666666666666665,
+            "variable": "x[1]_out"
+          },
+          {
+            "coefficient": -2.1945017480073803,
+            "variable": "x[2]_out"
+          },
+          {
+            "coefficient": -2.062844126746919,
+            "variable": "x[3]_out"
+          },
+          {
+            "coefficient": -1.5350090454062049,
+            "variable": "x[4]_out"
+          },
+          {
+            "coefficient": -12.540978413172828,
+            "variable": "W_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x22"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 1927.7681544507475
+      }
+    },
+    {
+      "name": "c5",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 0.3333333333333333,
+            "variable": "x[1]_out"
+          },
+          {
+            "coefficient": 0.8888888888888893,
+            "variable": "x[2]_out"
+          },
+          {
+            "coefficient": -0.15439076680677388,
+            "variable": "x[3]_out"
+          },
+          {
+            "coefficient": -0.7099463223623298,
+            "variable": "x[4]_out"
+          },
+          {
+            "coefficient": -23.804971985987923,
+            "variable": "W_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x22"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 1148.2895325571894
+      }
+    },
+    {
+      "name": "c6",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 0.3333333333333333,
+            "variable": "x[1]_out"
+          },
+          {
+            "coefficient": 0.94191184845801,
+            "variable": "x[2]_out"
+          },
+          {
+            "coefficient": 0.004766122536982165,
+            "variable": "x[3]_out"
+          },
+          {
+            "coefficient": -0.6038123925876946,
+            "variable": "x[4]_out"
+          },
+          {
+            "coefficient": -24.13298903519742,
+            "variable": "W_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x22"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 1144.3802712665056
+      }
+    },
+    {
+      "name": "c7",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 0.3333333333333333,
+            "variable": "x[1]_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x[2]_out"
+          },
+          {
+            "coefficient": 1.6666666666666665,
+            "variable": "x[3]_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x[4]_out"
+          },
+          {
+            "coefficient": -27.456790123456788,
+            "variable": "W_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x22"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 1157.5308641975307
+      }
+    },
+    {
+      "name": "c8",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 0.3333333333333333,
+            "variable": "x[1]_out"
+          },
+          {
+            "coefficient": 0.8888888888888886,
+            "variable": "x[2]_out"
+          },
+          {
+            "coefficient": -0.03884090612407687,
+            "variable": "x[3]_out"
+          },
+          {
+            "coefficient": -0.5943964616796322,
+            "variable": "x[4]_out"
+          },
+          {
+            "coefficient": -24.0457749778753,
+            "variable": "W_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x22"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 1146.0313440251784
+      }
+    },
+    {
+      "name": "c9",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 0.3333333333333333,
+            "variable": "x[1]_out"
+          },
+          {
+            "coefficient": 0.7283950617283944,
+            "variable": "x[2]_out"
+          },
+          {
+            "coefficient": -0.4074074074074083,
+            "variable": "x[3]_out"
+          },
+          {
+            "coefficient": -0.8024691358024694,
+            "variable": "x[4]_out"
+          },
+          {
+            "coefficient": -22.09876543209876,
+            "variable": "W_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x22"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 1215.925925925926
+      }
+    },
+    {
+      "name": "c10",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.6666666666666665,
+            "variable": "x[1]_out"
+          },
+          {
+            "coefficient": -1.2716049382716055,
+            "variable": "x[2]_out"
+          },
+          {
+            "coefficient": -0.4074074074074083,
+            "variable": "x[3]_out"
+          },
+          {
+            "coefficient": -0.8024691358024694,
+            "variable": "x[4]_out"
+          },
+          {
+            "coefficient": -22.09876543209876,
+            "variable": "W_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x22"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 1215.9259259259263
+      }
+    },
+    {
+      "name": "c11",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 0.3333333333333333,
+            "variable": "x[1]_out"
+          },
+          {
+            "coefficient": 0.30864197530864124,
+            "variable": "x[2]_out"
+          },
+          {
+            "coefficient": -1.3058984910836777,
+            "variable": "x[3]_out"
+          },
+          {
+            "coefficient": -1.2812071330589856,
+            "variable": "x[4]_out"
+          },
+          {
+            "coefficient": -18.05486968449931,
+            "variable": "W_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x22"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 1462.2222222222217
+      }
+    },
+    {
+      "name": "c12",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.6666666666666665,
+            "variable": "x[1]_out"
+          },
+          {
+            "coefficient": -1.6913580246913587,
+            "variable": "x[2]_out"
+          },
+          {
+            "coefficient": -1.3058984910836777,
+            "variable": "x[3]_out"
+          },
+          {
+            "coefficient": -1.2812071330589856,
+            "variable": "x[4]_out"
+          },
+          {
+            "coefficient": -14.05486968449931,
+            "variable": "W_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x22"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 1802.2222222222213
+      }
+    },
+    {
+      "name": "c13",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.6666666666666665,
+            "variable": "x[1]_out"
+          },
+          {
+            "coefficient": -1.1111111111111107,
+            "variable": "x[2]_out"
+          },
+          {
+            "coefficient": -0.04336835377546322,
+            "variable": "x[3]_out"
+          },
+          {
+            "coefficient": -0.5989239093310191,
+            "variable": "x[4]_out"
+          },
+          {
+            "coefficient": -24.03672008257253,
+            "variable": "W_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x22"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 1145.986069548644
+      }
+    },
+    {
+      "name": "c14",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.6666666666666665,
+            "variable": "x[1]_out"
+          },
+          {
+            "coefficient": -1.2812071330589856,
+            "variable": "x[2]_out"
+          },
+          {
+            "coefficient": -0.6021947873799736,
+            "variable": "x[3]_out"
+          },
+          {
+            "coefficient": -0.9876543209876545,
+            "variable": "x[4]_out"
+          },
+          {
+            "coefficient": -21.709190672153632,
+            "variable": "W_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x22"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 1222.2496570644698
+      }
+    },
+    {
+      "name": "c15",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.6666666666666665,
+            "variable": "x[1]_out"
+          },
+          {
+            "coefficient": -1.6913580246913587,
+            "variable": "x[2]_out"
+          },
+          {
+            "coefficient": -1.2962962962962976,
+            "variable": "x[3]_out"
+          },
+          {
+            "coefficient": -1.2716049382716055,
+            "variable": "x[4]_out"
+          },
+          {
+            "coefficient": -14.07407407407407,
+            "variable": "W_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x22"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 1801.3580246913577
+      }
+    },
+    {
+      "name": "c16",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.6666666666666665,
+            "variable": "x[1]_out"
+          },
+          {
+            "coefficient": -1.2812071330589856,
+            "variable": "x[2]_out"
+          },
+          {
+            "coefficient": -0.6021947873799736,
+            "variable": "x[3]_out"
+          },
+          {
+            "coefficient": -0.9876543209876545,
+            "variable": "x[4]_out"
+          },
+          {
+            "coefficient": -21.709190672153632,
+            "variable": "W_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x22"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 1222.24965706447
+      }
+    },
+    {
+      "name": "c17",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.6666666666666665,
+            "variable": "x[1]_out"
+          },
+          {
+            "coefficient": -1.2716049382716055,
+            "variable": "x[2]_out"
+          },
+          {
+            "coefficient": -0.40895061728395093,
+            "variable": "x[3]_out"
+          },
+          {
+            "coefficient": -0.804012345679012,
+            "variable": "x[4]_out"
+          },
+          {
+            "coefficient": -22.095679012345677,
+            "variable": "W_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x22"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 1215.9722222222204
+      }
+    },
+    {
+      "name": "c18",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.6666666666666665,
+            "variable": "x[1]_out"
+          },
+          {
+            "coefficient": -1.2716049382716055,
+            "variable": "x[2]_out"
+          },
+          {
+            "coefficient": -0.40895061728395093,
+            "variable": "x[3]_out"
+          },
+          {
+            "coefficient": -0.804012345679012,
+            "variable": "x[4]_out"
+          },
+          {
+            "coefficient": -22.095679012345677,
+            "variable": "W_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "x22"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 1215.9722222222208
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[1]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[2]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[3]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 50.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[4]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 50.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "W_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 80.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "filling"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 15.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[1]_out"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[2]_out"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[3]_out"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[4]_out"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "W_out"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "y[1]"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "y[2]"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "y[3]"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "w[1]"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "w[2]"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "w[3]"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "balancing[1]"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "balancing[2]"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "balancing[3]"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "spoil"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[1]_out"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 50.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[2]_out"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 50.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[3]_out"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 50.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[4]_out"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 50.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "W_out"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 100.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x22"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 100000.0
+      }
+    }
+  ]
+}
