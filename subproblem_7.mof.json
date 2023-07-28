@@ -78,12 +78,12 @@
       "type": "ScalarAffineFunction",
       "terms": [
         {
-          "coefficient": 20.0,
-          "variable": "y[2]"
+          "coefficient": 10.0,
+          "variable": "y[1]"
         },
         {
-          "coefficient": -24.0,
-          "variable": "b[2]"
+          "coefficient": -12.0,
+          "variable": "b[1]"
         },
         {
           "coefficient": 1.0,
@@ -98,7 +98,20 @@
       "name": "clearing[1]",
       "function": {
         "type": "ScalarAffineFunction",
-        "terms": [],
+        "terms": [
+          {
+            "coefficient": -0.5,
+            "variable": "x[1]_in"
+          },
+          {
+            "coefficient": -0.5,
+            "variable": "x[2]_in"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "y[1]"
+          }
+        ],
         "constant": 0.0
       },
       "set": {
@@ -110,20 +123,7 @@
       "name": "clearing[2]",
       "function": {
         "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": -0.5,
-            "variable": "x[2]_in"
-          },
-          {
-            "coefficient": -0.5,
-            "variable": "x[3]_in"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "y[2]"
-          }
-        ],
+        "terms": [],
         "constant": 0.0
       },
       "set": {
@@ -147,7 +147,20 @@
       "name": "production[1]",
       "function": {
         "type": "ScalarAffineFunction",
-        "terms": [],
+        "terms": [
+          {
+            "coefficient": 1.0,
+            "variable": "y[1]"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "w[1]"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "b[1]"
+          }
+        ],
         "constant": 0.0
       },
       "set": {
@@ -159,20 +172,7 @@
       "name": "production[2]",
       "function": {
         "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": 1.0,
-            "variable": "y[2]"
-          },
-          {
-            "coefficient": -1.0,
-            "variable": "w[2]"
-          },
-          {
-            "coefficient": -1.0,
-            "variable": "b[2]"
-          }
-        ],
+        "terms": [],
         "constant": 0.0
       },
       "set": {
@@ -211,7 +211,7 @@
           },
           {
             "coefficient": 1.0,
-            "variable": "w[2]"
+            "variable": "w[1]"
           },
           {
             "coefficient": 1.0,
@@ -295,7 +295,7 @@
       },
       "set": {
         "type": "EqualTo",
-        "value": 14.999999999999634
+        "value": 30.00000000000003
       }
     },
     {
@@ -305,7 +305,7 @@
       },
       "set": {
         "type": "EqualTo",
-        "value": 14.999999999999634
+        "value": 30.000000000000036
       }
     },
     {
@@ -315,7 +315,7 @@
       },
       "set": {
         "type": "EqualTo",
-        "value": 14.99999999999963
+        "value": 30.000000000000036
       }
     },
     {
@@ -325,7 +325,7 @@
       },
       "set": {
         "type": "EqualTo",
-        "value": 14.99999999999963
+        "value": 30.000000000000036
       }
     },
     {
@@ -335,7 +335,7 @@
       },
       "set": {
         "type": "EqualTo",
-        "value": 5.0
+        "value": 15.0
       }
     },
     {
@@ -345,7 +345,7 @@
       },
       "set": {
         "type": "EqualTo",
-        "value": 10.0
+        "value": 15.0
       }
     },
     {

@@ -6,70 +6,145 @@
   },
   "variables": [
     {
-      "name": "x[1]_in"
+      "name": "x[1,1]_in"
     },
     {
-      "name": "x[2]_in"
+      "name": "x[2,1]_in"
     },
     {
-      "name": "x[3]_in"
+      "name": "x[3,1]_in"
     },
     {
-      "name": "x[4]_in"
+      "name": "x[4,1]_in"
     },
     {
-      "name": "W_in"
+      "name": "x[5,1]_in"
     },
     {
-      "name": "filling"
+      "name": "x[6,1]_in"
     },
     {
-      "name": "x[1]_out"
+      "name": "l[Flasjon\n]_in"
     },
     {
-      "name": "x[2]_out"
+      "name": "l[Holsmjon\n]_in"
     },
     {
-      "name": "x[3]_out"
+      "name": "lind[Flasjon\n]_in"
     },
     {
-      "name": "x[4]_out"
+      "name": "lind[Holsmjon\n]_in"
     },
     {
-      "name": "W_out"
+      "name": "u_start[Flasjo\n]_in"
+    },
+    {
+      "name": "Qnom[Flasjon\n]_in"
+    },
+    {
+      "name": "Qnom[Holsmjon\n]_in"
+    },
+    {
+      "name": "f[Flasjon\n]"
+    },
+    {
+      "name": "f[Holsmjon\n]"
+    },
+    {
+      "name": "x[1,1]_out"
+    },
+    {
+      "name": "x[2,1]_out"
+    },
+    {
+      "name": "x[3,1]_out"
+    },
+    {
+      "name": "x[4,1]_out"
+    },
+    {
+      "name": "x[5,1]_out"
+    },
+    {
+      "name": "x[6,1]_out"
+    },
+    {
+      "name": "l[Flasjon\n]_out"
+    },
+    {
+      "name": "l[Holsmjon\n]_out"
+    },
+    {
+      "name": "Qnom[Flasjon\n]_out"
+    },
+    {
+      "name": "Qnom[Holsmjon\n]_out"
     },
     {
       "name": "y[1]"
     },
     {
-      "name": "y[2]"
+      "name": "w[1,Flasjo\n]"
     },
     {
-      "name": "y[3]"
+      "name": "z_up[1]"
     },
     {
-      "name": "w[1]"
+      "name": "z_down[1]"
     },
     {
-      "name": "w[2]"
+      "name": "Qeff[1,Flasjo\n]"
     },
     {
-      "name": "w[3]"
+      "name": "Qreal[1,Flasjon\n]"
     },
     {
-      "name": "balancing[1]"
+      "name": "Qreal[1,Holsmjon\n]"
     },
     {
-      "name": "balancing[2]"
+      "name": "Qadj[Flasjon\n]"
     },
     {
-      "name": "balancing[3]"
+      "name": "Qadj[Holsmjon\n]"
     },
     {
-      "name": "spoil"
+      "name": "Pover[Parteboda\n]"
     },
     {
-      "name": "x22"
+      "name": "s[Flasjon\n]"
+    },
+    {
+      "name": "s[Holsmjon\n]"
+    },
+    {
+      "name": "x38"
+    },
+    {
+      "name": "u_start[Flasjo\n]_out"
+    },
+    {
+      "name": "d[1,Flasjo\n]"
+    },
+    {
+      "name": "u[1,Flasjo\n]"
+    },
+    {
+      "name": "BALANCE_INDICATOR[Flasjon\n]"
+    },
+    {
+      "name": "BALANCE_INDICATOR[Holsmjon\n]"
+    },
+    {
+      "name": "lind[Flasjon\n]_out"
+    },
+    {
+      "name": "lind[Holsmjon\n]_out"
+    },
+    {
+      "name": "Pswap[Flasjon\n]"
+    },
+    {
+      "name": "Pswap[Holsmjon\n]"
     }
   ],
   "objective": {
@@ -78,16 +153,24 @@
       "type": "ScalarAffineFunction",
       "terms": [
         {
-          "coefficient": 10.0,
+          "coefficient": 0.185,
           "variable": "y[1]"
         },
         {
-          "coefficient": -12.0,
-          "variable": "balancing[1]"
+          "coefficient": -0.7,
+          "variable": "z_up[1]"
+        },
+        {
+          "coefficient": 0.3,
+          "variable": "z_down[1]"
+        },
+        {
+          "coefficient": -0.1,
+          "variable": "d[1,Flasjo\n]"
         },
         {
           "coefficient": 1.0,
-          "variable": "x22"
+          "variable": "x38"
         }
       ],
       "constant": 0.0
@@ -95,17 +178,201 @@
   },
   "constraints": [
     {
+      "name": "balance_ind[Flasjon\n]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.0,
+            "variable": "lind[Flasjon\n]_in"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Qnom[Flasjon\n]_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "s[Flasjon\n]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "lind[Flasjon\n]_out"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 10.0
+      }
+    },
+    {
+      "name": "balance_ind[Holsmjon\n]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.0,
+            "variable": "lind[Holsmjon\n]_in"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Qnom[Holsmjon\n]_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "s[Holsmjon\n]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "lind[Holsmjon\n]_out"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 10.0
+      }
+    },
+    {
+      "name": "adjustedflow[Flasjon\n]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.84,
+            "variable": "Qnom[Flasjon\n]_in"
+          },
+          {
+            "coefficient": 4.5200000000000005,
+            "variable": "Qadj[Flasjon\n]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.804
+      }
+    },
+    {
+      "name": "adjustedflow[Holsmjon\n]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 2.68,
+            "variable": "Qadj[Holsmjon\n]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.804
+      }
+    },
+    {
+      "name": "powerswap[Flasjon\n]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.84,
+            "variable": "Qnom[Flasjon\n]_in"
+          },
+          {
+            "coefficient": 1.84,
+            "variable": "Qadj[Flasjon\n]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Pover[Parteboda\n]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Pswap[Flasjon\n]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "powerswap[Holsmjon\n]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 1.0,
+            "variable": "Pover[Parteboda\n]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Pswap[Holsmjon\n]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "endcond[Flasjo\n]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 1.0,
+            "variable": "u_start[Flasjo\n]_out"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "u[1,Flasjo\n]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "startcond[Flasjo\n]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 1.0,
+            "variable": "u_start[Flasjo\n]_in"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "u[1,Flasjo\n]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
       "name": "clearing[1]",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
-            "coefficient": -0.5,
-            "variable": "x[1]_in"
-          },
-          {
-            "coefficient": -0.5,
-            "variable": "x[2]_in"
+            "coefficient": -0.9249999999999999,
+            "variable": "x[1,1]_in"
           },
           {
             "coefficient": 1.0,
@@ -120,10 +387,19 @@
       }
     },
     {
-      "name": "clearing[2]",
+      "name": "nomination[Flasjon\n]",
       "function": {
         "type": "ScalarAffineFunction",
-        "terms": [],
+        "terms": [
+          {
+            "coefficient": 1.0,
+            "variable": "Qreal[1,Flasjon\n]"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "Qadj[Flasjon\n]"
+          }
+        ],
         "constant": 0.0
       },
       "set": {
@@ -132,10 +408,19 @@
       }
     },
     {
-      "name": "clearing[3]",
+      "name": "nomination[Holsmjon\n]",
       "function": {
         "type": "ScalarAffineFunction",
-        "terms": [],
+        "terms": [
+          {
+            "coefficient": 1.0,
+            "variable": "Qreal[1,Holsmjon\n]"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "Qadj[Holsmjon\n]"
+          }
+        ],
         "constant": 0.0
       },
       "set": {
@@ -144,7 +429,7 @@
       }
     },
     {
-      "name": "production[1]",
+      "name": "obligation[1]",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
@@ -154,11 +439,23 @@
           },
           {
             "coefficient": -1.0,
-            "variable": "w[1]"
+            "variable": "w[1,Flasjo\n]"
           },
           {
             "coefficient": -1.0,
-            "variable": "balancing[1]"
+            "variable": "z_up[1]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "z_down[1]"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "Pswap[Flasjon\n]"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "Pswap[Holsmjon\n]"
           }
         ],
         "constant": 0.0
@@ -169,53 +466,29 @@
       }
     },
     {
-      "name": "production[2]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
-    {
-      "name": "production[3]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
-    {
-      "name": "balance",
+      "name": "balance[Flasjon\n]",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
             "coefficient": -1.0,
-            "variable": "W_in"
+            "variable": "l[Flasjon\n]_in"
           },
           {
             "coefficient": -1.0,
-            "variable": "filling"
+            "variable": "f[Flasjon\n]"
           },
           {
             "coefficient": 1.0,
-            "variable": "W_out"
+            "variable": "l[Flasjon\n]_out"
           },
           {
             "coefficient": 1.0,
-            "variable": "w[1]"
+            "variable": "Qadj[Flasjon\n]"
           },
           {
             "coefficient": 1.0,
-            "variable": "spoil"
+            "variable": "s[Flasjon\n]"
           }
         ],
         "constant": 0.0
@@ -226,17 +499,113 @@
       }
     },
     {
-      "name": "increasing[1]",
+      "name": "balance[Holsmjon\n]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.0,
+            "variable": "l[Holsmjon\n]_in"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "f[Holsmjon\n]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "l[Holsmjon\n]_out"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Qadj[Holsmjon\n]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "s[Holsmjon\n]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "active[1,Flasjo\n]",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
             "coefficient": 1.0,
-            "variable": "x[1]_out"
+            "variable": "w[1,Flasjo\n]"
+          },
+          {
+            "coefficient": -0.1798,
+            "variable": "u[1,Flasjo\n]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "production[1,Flasjo\n]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 1.0,
+            "variable": "w[1,Flasjo\n]"
+          },
+          {
+            "coefficient": -0.31,
+            "variable": "Qeff[1,Flasjo\n]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "overnomination[Parteboda\n]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -0.27,
+            "variable": "Qadj[Holsmjon\n]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Pover[Parteboda\n]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": -0.378
+      }
+    },
+    {
+      "name": "increasing[1,1]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 1.0,
+            "variable": "x[1,1]_out"
           },
           {
             "coefficient": -1.0,
-            "variable": "x[2]_out"
+            "variable": "x[2,1]_out"
           }
         ],
         "constant": 0.0
@@ -247,17 +616,17 @@
       }
     },
     {
-      "name": "increasing[2]",
+      "name": "increasing[2,1]",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
             "coefficient": 1.0,
-            "variable": "x[2]_out"
+            "variable": "x[2,1]_out"
           },
           {
             "coefficient": -1.0,
-            "variable": "x[3]_out"
+            "variable": "x[3,1]_out"
           }
         ],
         "constant": 0.0
@@ -268,17 +637,17 @@
       }
     },
     {
-      "name": "increasing[3]",
+      "name": "increasing[3,1]",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
             "coefficient": 1.0,
-            "variable": "x[3]_out"
+            "variable": "x[3,1]_out"
           },
           {
             "coefficient": -1.0,
-            "variable": "x[4]_out"
+            "variable": "x[4,1]_out"
           }
         ],
         "constant": 0.0
@@ -289,564 +658,89 @@
       }
     },
     {
-      "name": "c4",
+      "name": "increasing[4,1]",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
-            "coefficient": -1.6666666666666665,
-            "variable": "x[1]_out"
-          },
-          {
-            "coefficient": -2.1945017480073803,
-            "variable": "x[2]_out"
-          },
-          {
-            "coefficient": -2.062844126746919,
-            "variable": "x[3]_out"
-          },
-          {
-            "coefficient": -1.5350090454062049,
-            "variable": "x[4]_out"
-          },
-          {
-            "coefficient": -12.540978413172828,
-            "variable": "W_out"
-          },
-          {
             "coefficient": 1.0,
-            "variable": "x22"
+            "variable": "x[4,1]_out"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "x[5,1]_out"
           }
         ],
         "constant": 0.0
       },
       "set": {
         "type": "LessThan",
-        "upper": 1927.7681544507475
+        "upper": 0.0
       }
     },
     {
-      "name": "c5",
+      "name": "increasing[5,1]",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
-            "coefficient": 0.3333333333333333,
-            "variable": "x[1]_out"
-          },
-          {
-            "coefficient": 0.8888888888888893,
-            "variable": "x[2]_out"
-          },
-          {
-            "coefficient": -0.15439076680677388,
-            "variable": "x[3]_out"
-          },
-          {
-            "coefficient": -0.7099463223623298,
-            "variable": "x[4]_out"
-          },
-          {
-            "coefficient": -23.804971985987923,
-            "variable": "W_out"
-          },
-          {
             "coefficient": 1.0,
-            "variable": "x22"
+            "variable": "x[5,1]_out"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "x[6,1]_out"
           }
         ],
         "constant": 0.0
       },
       "set": {
         "type": "LessThan",
-        "upper": 1148.2895325571894
+        "upper": 0.0
       }
     },
     {
-      "name": "c6",
+      "name": "realwater[1,Flasjo\n]",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
-            "coefficient": 0.3333333333333333,
-            "variable": "x[1]_out"
-          },
-          {
-            "coefficient": 0.94191184845801,
-            "variable": "x[2]_out"
-          },
-          {
-            "coefficient": 0.004766122536982165,
-            "variable": "x[3]_out"
-          },
-          {
-            "coefficient": -0.6038123925876946,
-            "variable": "x[4]_out"
-          },
-          {
-            "coefficient": -24.13298903519742,
-            "variable": "W_out"
-          },
-          {
             "coefficient": 1.0,
-            "variable": "x22"
+            "variable": "Qeff[1,Flasjo\n]"
+          },
+          {
+            "coefficient": -1.0,
+            "variable": "Qreal[1,Flasjon\n]"
           }
         ],
         "constant": 0.0
       },
       "set": {
         "type": "LessThan",
-        "upper": 1144.3802712665056
+        "upper": 0.0
       }
     },
     {
-      "name": "c7",
+      "name": "spillwater[1,Flasjo\n]",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
-            "coefficient": 0.3333333333333333,
-            "variable": "x[1]_out"
-          },
-          {
             "coefficient": 1.0,
-            "variable": "x[2]_out"
-          },
-          {
-            "coefficient": 1.6666666666666665,
-            "variable": "x[3]_out"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "x[4]_out"
-          },
-          {
-            "coefficient": -27.456790123456788,
-            "variable": "W_out"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "x22"
+            "variable": "Qeff[1,Flasjo\n]"
           }
         ],
         "constant": 0.0
       },
       "set": {
         "type": "LessThan",
-        "upper": 1157.5308641975307
-      }
-    },
-    {
-      "name": "c8",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": 0.3333333333333333,
-            "variable": "x[1]_out"
-          },
-          {
-            "coefficient": 0.8888888888888886,
-            "variable": "x[2]_out"
-          },
-          {
-            "coefficient": -0.03884090612407687,
-            "variable": "x[3]_out"
-          },
-          {
-            "coefficient": -0.5943964616796322,
-            "variable": "x[4]_out"
-          },
-          {
-            "coefficient": -24.0457749778753,
-            "variable": "W_out"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "x22"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 1146.0313440251784
-      }
-    },
-    {
-      "name": "c9",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": 0.3333333333333333,
-            "variable": "x[1]_out"
-          },
-          {
-            "coefficient": 0.7283950617283944,
-            "variable": "x[2]_out"
-          },
-          {
-            "coefficient": -0.4074074074074083,
-            "variable": "x[3]_out"
-          },
-          {
-            "coefficient": -0.8024691358024694,
-            "variable": "x[4]_out"
-          },
-          {
-            "coefficient": -22.09876543209876,
-            "variable": "W_out"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "x22"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 1215.925925925926
-      }
-    },
-    {
-      "name": "c10",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": -1.6666666666666665,
-            "variable": "x[1]_out"
-          },
-          {
-            "coefficient": -1.2716049382716055,
-            "variable": "x[2]_out"
-          },
-          {
-            "coefficient": -0.4074074074074083,
-            "variable": "x[3]_out"
-          },
-          {
-            "coefficient": -0.8024691358024694,
-            "variable": "x[4]_out"
-          },
-          {
-            "coefficient": -22.09876543209876,
-            "variable": "W_out"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "x22"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 1215.9259259259263
-      }
-    },
-    {
-      "name": "c11",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": 0.3333333333333333,
-            "variable": "x[1]_out"
-          },
-          {
-            "coefficient": 0.30864197530864124,
-            "variable": "x[2]_out"
-          },
-          {
-            "coefficient": -1.3058984910836777,
-            "variable": "x[3]_out"
-          },
-          {
-            "coefficient": -1.2812071330589856,
-            "variable": "x[4]_out"
-          },
-          {
-            "coefficient": -18.05486968449931,
-            "variable": "W_out"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "x22"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 1462.2222222222217
-      }
-    },
-    {
-      "name": "c12",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": -1.6666666666666665,
-            "variable": "x[1]_out"
-          },
-          {
-            "coefficient": -1.6913580246913587,
-            "variable": "x[2]_out"
-          },
-          {
-            "coefficient": -1.3058984910836777,
-            "variable": "x[3]_out"
-          },
-          {
-            "coefficient": -1.2812071330589856,
-            "variable": "x[4]_out"
-          },
-          {
-            "coefficient": -14.05486968449931,
-            "variable": "W_out"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "x22"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 1802.2222222222213
-      }
-    },
-    {
-      "name": "c13",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": -1.6666666666666665,
-            "variable": "x[1]_out"
-          },
-          {
-            "coefficient": -1.1111111111111107,
-            "variable": "x[2]_out"
-          },
-          {
-            "coefficient": -0.04336835377546322,
-            "variable": "x[3]_out"
-          },
-          {
-            "coefficient": -0.5989239093310191,
-            "variable": "x[4]_out"
-          },
-          {
-            "coefficient": -24.03672008257253,
-            "variable": "W_out"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "x22"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 1145.986069548644
-      }
-    },
-    {
-      "name": "c14",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": -1.6666666666666665,
-            "variable": "x[1]_out"
-          },
-          {
-            "coefficient": -1.2812071330589856,
-            "variable": "x[2]_out"
-          },
-          {
-            "coefficient": -0.6021947873799736,
-            "variable": "x[3]_out"
-          },
-          {
-            "coefficient": -0.9876543209876545,
-            "variable": "x[4]_out"
-          },
-          {
-            "coefficient": -21.709190672153632,
-            "variable": "W_out"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "x22"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 1222.2496570644698
-      }
-    },
-    {
-      "name": "c15",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": -1.6666666666666665,
-            "variable": "x[1]_out"
-          },
-          {
-            "coefficient": -1.6913580246913587,
-            "variable": "x[2]_out"
-          },
-          {
-            "coefficient": -1.2962962962962976,
-            "variable": "x[3]_out"
-          },
-          {
-            "coefficient": -1.2716049382716055,
-            "variable": "x[4]_out"
-          },
-          {
-            "coefficient": -14.07407407407407,
-            "variable": "W_out"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "x22"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 1801.3580246913577
-      }
-    },
-    {
-      "name": "c16",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": -1.6666666666666665,
-            "variable": "x[1]_out"
-          },
-          {
-            "coefficient": -1.2812071330589856,
-            "variable": "x[2]_out"
-          },
-          {
-            "coefficient": -0.6021947873799736,
-            "variable": "x[3]_out"
-          },
-          {
-            "coefficient": -0.9876543209876545,
-            "variable": "x[4]_out"
-          },
-          {
-            "coefficient": -21.709190672153632,
-            "variable": "W_out"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "x22"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 1222.24965706447
-      }
-    },
-    {
-      "name": "c17",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": -1.6666666666666665,
-            "variable": "x[1]_out"
-          },
-          {
-            "coefficient": -1.2716049382716055,
-            "variable": "x[2]_out"
-          },
-          {
-            "coefficient": -0.40895061728395093,
-            "variable": "x[3]_out"
-          },
-          {
-            "coefficient": -0.804012345679012,
-            "variable": "x[4]_out"
-          },
-          {
-            "coefficient": -22.095679012345677,
-            "variable": "W_out"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "x22"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 1215.9722222222204
-      }
-    },
-    {
-      "name": "c18",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": -1.6666666666666665,
-            "variable": "x[1]_out"
-          },
-          {
-            "coefficient": -1.2716049382716055,
-            "variable": "x[2]_out"
-          },
-          {
-            "coefficient": -0.40895061728395093,
-            "variable": "x[3]_out"
-          },
-          {
-            "coefficient": -0.804012345679012,
-            "variable": "x[4]_out"
-          },
-          {
-            "coefficient": -22.095679012345677,
-            "variable": "W_out"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "x22"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 1215.9722222222208
+        "upper": 0.58
       }
     },
     {
       "function": {
         "type": "Variable",
-        "name": "x[1]_in"
+        "name": "x[1,1]_in"
       },
       "set": {
         "type": "EqualTo",
@@ -856,7 +750,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "x[2]_in"
+        "name": "x[2,1]_in"
       },
       "set": {
         "type": "EqualTo",
@@ -866,7 +760,27 @@
     {
       "function": {
         "type": "Variable",
-        "name": "x[3]_in"
+        "name": "x[3,1]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[4,1]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[5,1]_in"
       },
       "set": {
         "type": "EqualTo",
@@ -876,7 +790,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "x[4]_in"
+        "name": "x[6,1]_in"
       },
       "set": {
         "type": "EqualTo",
@@ -886,27 +800,97 @@
     {
       "function": {
         "type": "Variable",
-        "name": "W_in"
+        "name": "l[Flasjon\n]_in"
       },
       "set": {
         "type": "EqualTo",
-        "value": 80.0
+        "value": 34999.42
       }
     },
     {
       "function": {
         "type": "Variable",
-        "name": "filling"
+        "name": "l[Holsmjon\n]_in"
       },
       "set": {
         "type": "EqualTo",
-        "value": 15.0
+        "value": 17998.6
       }
     },
     {
       "function": {
         "type": "Variable",
-        "name": "x[1]_out"
+        "name": "lind[Flasjon\n]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 35009.42
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "lind[Holsmjon\n]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 18008.6
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "u_start[Flasjo\n]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 1.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "Qnom[Flasjon\n]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.58
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "Qnom[Holsmjon\n]_in"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 1.4
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "f[Flasjon\n]"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 10.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "f[Holsmjon\n]"
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 10.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[1,1]_out"
       },
       "set": {
         "type": "GreaterThan",
@@ -916,7 +900,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "x[2]_out"
+        "name": "x[2,1]_out"
       },
       "set": {
         "type": "GreaterThan",
@@ -926,7 +910,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "x[3]_out"
+        "name": "x[3,1]_out"
       },
       "set": {
         "type": "GreaterThan",
@@ -936,7 +920,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "x[4]_out"
+        "name": "x[4,1]_out"
       },
       "set": {
         "type": "GreaterThan",
@@ -946,7 +930,57 @@
     {
       "function": {
         "type": "Variable",
-        "name": "W_out"
+        "name": "x[5,1]_out"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[6,1]_out"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "l[Flasjon\n]_out"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "l[Holsmjon\n]_out"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "Qnom[Flasjon\n]_out"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "Qnom[Holsmjon\n]_out"
       },
       "set": {
         "type": "GreaterThan",
@@ -966,7 +1000,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "y[2]"
+        "name": "w[1,Flasjo\n]"
       },
       "set": {
         "type": "GreaterThan",
@@ -976,7 +1010,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "y[3]"
+        "name": "z_up[1]"
       },
       "set": {
         "type": "GreaterThan",
@@ -986,7 +1020,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "w[1]"
+        "name": "z_down[1]"
       },
       "set": {
         "type": "GreaterThan",
@@ -996,7 +1030,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "w[2]"
+        "name": "Qeff[1,Flasjo\n]"
       },
       "set": {
         "type": "GreaterThan",
@@ -1006,7 +1040,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "w[3]"
+        "name": "Qreal[1,Flasjon\n]"
       },
       "set": {
         "type": "GreaterThan",
@@ -1016,7 +1050,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "balancing[1]"
+        "name": "Qreal[1,Holsmjon\n]"
       },
       "set": {
         "type": "GreaterThan",
@@ -1026,7 +1060,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "balancing[2]"
+        "name": "Qadj[Flasjon\n]"
       },
       "set": {
         "type": "GreaterThan",
@@ -1036,7 +1070,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "balancing[3]"
+        "name": "Qadj[Holsmjon\n]"
       },
       "set": {
         "type": "GreaterThan",
@@ -1046,7 +1080,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "spoil"
+        "name": "Pover[Parteboda\n]"
       },
       "set": {
         "type": "GreaterThan",
@@ -1056,7 +1090,37 @@
     {
       "function": {
         "type": "Variable",
-        "name": "x[1]_out"
+        "name": "s[Flasjon\n]"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "s[Holsmjon\n]"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x38"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x[1,1]_out"
       },
       "set": {
         "type": "LessThan",
@@ -1066,7 +1130,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "x[2]_out"
+        "name": "x[2,1]_out"
       },
       "set": {
         "type": "LessThan",
@@ -1076,7 +1140,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "x[3]_out"
+        "name": "x[3,1]_out"
       },
       "set": {
         "type": "LessThan",
@@ -1086,7 +1150,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "x[4]_out"
+        "name": "x[4,1]_out"
       },
       "set": {
         "type": "LessThan",
@@ -1096,21 +1160,306 @@
     {
       "function": {
         "type": "Variable",
-        "name": "W_out"
+        "name": "x[5,1]_out"
       },
       "set": {
         "type": "LessThan",
-        "upper": 100.0
+        "upper": 50.0
       }
     },
     {
       "function": {
         "type": "Variable",
-        "name": "x22"
+        "name": "x[6,1]_out"
       },
       "set": {
         "type": "LessThan",
-        "upper": 100000.0
+        "upper": 50.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "l[Flasjon\n]_out"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 40000.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "l[Holsmjon\n]_out"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 19200.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "Qnom[Flasjon\n]_out"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 0.58
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "Qnom[Holsmjon\n]_out"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 1.4
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "w[1,Flasjo\n]"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 0.1798
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "Qeff[1,Flasjo\n]"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 0.58
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "x38"
+      },
+      "set": {
+        "type": "LessThan",
+        "upper": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "u_start[Flasjo\n]_out"
+      },
+      "set": {
+        "type": "ZeroOne"
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "d[1,Flasjo\n]"
+      },
+      "set": {
+        "type": "ZeroOne"
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "u[1,Flasjo\n]"
+      },
+      "set": {
+        "type": "ZeroOne"
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "BALANCE_INDICATOR[Flasjon\n]"
+      },
+      "set": {
+        "type": "ZeroOne"
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "BALANCE_INDICATOR[Holsmjon\n]"
+      },
+      "set": {
+        "type": "ZeroOne"
+      }
+    },
+    {
+      "name": "nbal1[Flasjon\n]",
+      "function": {
+        "type": "VectorAffineFunction",
+        "terms": [
+          {
+            "output_index": 1,
+            "scalar_term": {
+              "coefficient": 1.0,
+              "variable": "BALANCE_INDICATOR[Flasjon\n]"
+            }
+          },
+          {
+            "output_index": 2,
+            "scalar_term": {
+              "coefficient": 1.0,
+              "variable": "Qnom[Flasjon\n]_out"
+            }
+          }
+        ],
+        "constants": [
+          0.0,
+          0.0
+        ]
+      },
+      "set": {
+        "type": "Indicator",
+        "set": {
+          "type": "LessThan",
+          "upper": 10.0
+        },
+        "activate_on": "one"
+      }
+    },
+    {
+      "name": "nbal1[Holsmjon\n]",
+      "function": {
+        "type": "VectorAffineFunction",
+        "terms": [
+          {
+            "output_index": 1,
+            "scalar_term": {
+              "coefficient": 1.0,
+              "variable": "BALANCE_INDICATOR[Holsmjon\n]"
+            }
+          },
+          {
+            "output_index": 2,
+            "scalar_term": {
+              "coefficient": 1.0,
+              "variable": "Qnom[Holsmjon\n]_out"
+            }
+          }
+        ],
+        "constants": [
+          0.0,
+          0.0
+        ]
+      },
+      "set": {
+        "type": "Indicator",
+        "set": {
+          "type": "LessThan",
+          "upper": 10.0
+        },
+        "activate_on": "one"
+      }
+    },
+    {
+      "name": "NoSpill[Flasjo\n]",
+      "function": {
+        "type": "VectorAffineFunction",
+        "terms": [
+          {
+            "output_index": 1,
+            "scalar_term": {
+              "coefficient": 1.0,
+              "variable": "BALANCE_INDICATOR[Flasjon\n]"
+            }
+          },
+          {
+            "output_index": 2,
+            "scalar_term": {
+              "coefficient": 1.0,
+              "variable": "Qnom[Flasjon\n]_out"
+            }
+          }
+        ],
+        "constants": [
+          0.0,
+          0.0
+        ]
+      },
+      "set": {
+        "type": "Indicator",
+        "set": {
+          "type": "LessThan",
+          "upper": 0.58
+        },
+        "activate_on": "one"
+      }
+    },
+    {
+      "name": "nbal2[Flasjon\n]",
+      "function": {
+        "type": "VectorAffineFunction",
+        "terms": [
+          {
+            "output_index": 1,
+            "scalar_term": {
+              "coefficient": 1.0,
+              "variable": "BALANCE_INDICATOR[Flasjon\n]"
+            }
+          },
+          {
+            "output_index": 2,
+            "scalar_term": {
+              "coefficient": -1.0,
+              "variable": "lind[Flasjon\n]_in"
+            }
+          }
+        ],
+        "constants": [
+          0.0,
+          0.0
+        ]
+      },
+      "set": {
+        "type": "Indicator",
+        "set": {
+          "type": "LessThan",
+          "upper": 0.0
+        },
+        "activate_on": "zero"
+      }
+    },
+    {
+      "name": "nbal2[Holsmjon\n]",
+      "function": {
+        "type": "VectorAffineFunction",
+        "terms": [
+          {
+            "output_index": 1,
+            "scalar_term": {
+              "coefficient": 1.0,
+              "variable": "BALANCE_INDICATOR[Holsmjon\n]"
+            }
+          },
+          {
+            "output_index": 2,
+            "scalar_term": {
+              "coefficient": -1.0,
+              "variable": "lind[Holsmjon\n]_in"
+            }
+          }
+        ],
+        "constants": [
+          0.0,
+          0.0
+        ]
+      },
+      "set": {
+        "type": "Indicator",
+        "set": {
+          "type": "LessThan",
+          "upper": 0.0
+        },
+        "activate_on": "zero"
       }
     }
   ]
