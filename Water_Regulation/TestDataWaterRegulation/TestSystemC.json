@@ -25,43 +25,43 @@
             "name": "KraftwerkA1",
             "reservoir": "r1",
             "equivalent": 0.5,
-            "spill_reference_level": 1
+            "spillreference": 1
         },
         {
             "name": "KraftwerkB1",
             "reservoir": "r1",
             "equivalent" :1,
-            "spill_reference_level": 1.3
+            "spillreference": 1.3
         },
         {
             "name": "KraftwerkA2",
             "reservoir": "r1",
             "equivalent" :0.5,
-            "spill_reference_level": 1
+            "spillreference": 1
         },
         {
             "name": "KraftwerkA3",
             "reservoir": "r2",
             "equivalent" :1,
-            "spill_reference_level": 1.4
+            "spillreference": 1.4
         },
         {
             "name": "KraftwerkB2",
             "reservoir": "r2",
             "equivalent" :1.2,
-            "spill_reference_level": 1.5
+            "spillreference": 1.5
         },
         {
             "name": "KraftwerkC1",
             "reservoir": "r3",
             "equivalent" :1.5,
-            "spill_reference_level": 1.8
+            "spillreference": 1.8
         },
         {
             "name": "KraftwerkB3",
             "reservoir": "r3",
             "equivalent": 1,
-            "spill_reference_level": 1.5
+            "spillreference": 1.5
         }
     ],
     "Participants":[ 
@@ -72,7 +72,7 @@
                 "r1": 1.5,
                 "r2": 2
             },
-            "balance": {
+            "individualreservoir": {
                 "r1": 0,
                 "r2": 0
             } 
@@ -84,7 +84,7 @@
                 "r1": 0.5,
                 "r2": 1.5
             },
-            "balance": {
+            "individualreservoir": {
                 "r1": 0,
                 "r2": 0
             } 
@@ -97,7 +97,7 @@
                 "r2": 1,
                 "r3": 1
             },
-            "balance": {
+            "individualreservoir": {
                 "r1": 0,
                 "r2": 0,
                 "r3": 0

@@ -131,15 +131,15 @@ end
 
 
 function Base.show(io::IO, hp::HydropowerPlant)
-    println(io, hp.name)
+    print(io, hp.name)
 end
 
 function Base.show(io::IO, r::Reservoir)
-    println(io, r.dischargepoint)
+    print(io, r.dischargepoint)
 end
 
 function Base.show(io::IO, p::Participant)
-    println(io, p.name)
+    print(io, p.name)
 end
 
 function Base.show(io::IO, Qadj_All::Dict{Reservoir, Float64})
