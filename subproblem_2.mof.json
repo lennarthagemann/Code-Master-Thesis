@@ -12,18 +12,6 @@
       "name": "x[2,1]_in"
     },
     {
-      "name": "x[3,1]_in"
-    },
-    {
-      "name": "x[4,1]_in"
-    },
-    {
-      "name": "x[5,1]_in"
-    },
-    {
-      "name": "x[6,1]_in"
-    },
-    {
       "name": "l[Flasjon\n]_in"
     },
     {
@@ -55,18 +43,6 @@
     },
     {
       "name": "x[2,1]_out"
-    },
-    {
-      "name": "x[3,1]_out"
-    },
-    {
-      "name": "x[4,1]_out"
-    },
-    {
-      "name": "x[5,1]_out"
-    },
-    {
-      "name": "x[6,1]_out"
     },
     {
       "name": "l[Flasjon\n]_out"
@@ -117,7 +93,7 @@
       "name": "s[Holsmjon\n]"
     },
     {
-      "name": "x38"
+      "name": "x30"
     },
     {
       "name": "u_start[Flasjo\n]_out"
@@ -153,7 +129,7 @@
       "type": "ScalarAffineFunction",
       "terms": [
         {
-          "coefficient": 0.185,
+          "coefficient": 0.283,
           "variable": "y[1]"
         },
         {
@@ -170,7 +146,7 @@
         },
         {
           "coefficient": 1.0,
-          "variable": "x38"
+          "variable": "x30"
         }
       ],
       "constant": 0.0
@@ -371,8 +347,12 @@
         "type": "ScalarAffineFunction",
         "terms": [
           {
-            "coefficient": -0.9249999999999999,
+            "coefficient": -0.283,
             "variable": "x[1,1]_in"
+          },
+          {
+            "coefficient": -0.7170000000000001,
+            "variable": "x[2,1]_in"
           },
           {
             "coefficient": 1.0,
@@ -616,90 +596,6 @@
       }
     },
     {
-      "name": "increasing[2,1]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": 1.0,
-            "variable": "x[2,1]_out"
-          },
-          {
-            "coefficient": -1.0,
-            "variable": "x[3,1]_out"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 0.0
-      }
-    },
-    {
-      "name": "increasing[3,1]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": 1.0,
-            "variable": "x[3,1]_out"
-          },
-          {
-            "coefficient": -1.0,
-            "variable": "x[4,1]_out"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 0.0
-      }
-    },
-    {
-      "name": "increasing[4,1]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": 1.0,
-            "variable": "x[4,1]_out"
-          },
-          {
-            "coefficient": -1.0,
-            "variable": "x[5,1]_out"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 0.0
-      }
-    },
-    {
-      "name": "increasing[5,1]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": 1.0,
-            "variable": "x[5,1]_out"
-          },
-          {
-            "coefficient": -1.0,
-            "variable": "x[6,1]_out"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 0.0
-      }
-    },
-    {
       "name": "realwater[1,Flasjo\n]",
       "function": {
         "type": "ScalarAffineFunction",
@@ -755,46 +651,6 @@
       "set": {
         "type": "EqualTo",
         "value": 0.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "x[3,1]_in"
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "x[4,1]_in"
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "x[5,1]_in"
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 50.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "x[6,1]_in"
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 50.0
       }
     },
     {
@@ -901,46 +757,6 @@
       "function": {
         "type": "Variable",
         "name": "x[2,1]_out"
-      },
-      "set": {
-        "type": "GreaterThan",
-        "lower": 0.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "x[3,1]_out"
-      },
-      "set": {
-        "type": "GreaterThan",
-        "lower": 0.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "x[4,1]_out"
-      },
-      "set": {
-        "type": "GreaterThan",
-        "lower": 0.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "x[5,1]_out"
-      },
-      "set": {
-        "type": "GreaterThan",
-        "lower": 0.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "x[6,1]_out"
       },
       "set": {
         "type": "GreaterThan",
@@ -1110,7 +926,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "x38"
+        "name": "x30"
       },
       "set": {
         "type": "GreaterThan",
@@ -1131,46 +947,6 @@
       "function": {
         "type": "Variable",
         "name": "x[2,1]_out"
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 50.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "x[3,1]_out"
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 50.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "x[4,1]_out"
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 50.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "x[5,1]_out"
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 50.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "x[6,1]_out"
       },
       "set": {
         "type": "LessThan",
@@ -1240,7 +1016,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "x38"
+        "name": "x30"
       },
       "set": {
         "type": "LessThan",
