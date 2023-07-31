@@ -19,13 +19,13 @@
             "name": "KraftwerkA",
             "reservoir": "r1",
             "equivalent": 0.5,
-            "spill_reference_level": 1
+            "spillreference": 1
         },
         {
             "name": "KraftwerkB",
             "reservoir": "r2",
             "equivalent" :1,
-            "spill_reference_level": 1.5
+            "spillreference": 1.5
         }
     ],
     "Participants":[ 
@@ -36,7 +36,7 @@
                 "r1": 0.5,
                 "r2": 0.0
             },
-            "balance": {
+            "individualreservoir": {
                 "r1": 0,
                 "r2": 0
             } 
@@ -48,7 +48,7 @@
                 "r1": 1,
                 "r2": 1
             },
-            "balance": {
+            "individualreservoir": {
                 "r1": 0,
                 "r2": 0
             } 
