@@ -84,55 +84,55 @@
       "type": "ScalarAffineFunction",
       "terms": [
         {
-          "coefficient": 12.0,
+          "coefficient": 11.5,
           "variable": "w[Flasjo]"
         },
         {
-          "coefficient": 12.0,
+          "coefficient": 11.5,
           "variable": "w[Trangfors]"
         },
         {
-          "coefficient": 12.0,
+          "coefficient": 11.5,
           "variable": "w[Ratan]"
         },
         {
-          "coefficient": 12.0,
+          "coefficient": 11.5,
           "variable": "w[Turinge]"
         },
         {
-          "coefficient": 12.0,
+          "coefficient": 11.5,
           "variable": "w[Bursnas]"
         },
         {
-          "coefficient": 12.0,
+          "coefficient": 11.5,
           "variable": "w[Jarnvagsforsen]"
         },
         {
-          "coefficient": 12.0,
+          "coefficient": 11.5,
           "variable": "w[Parteboda]"
         },
         {
-          "coefficient": 12.0,
+          "coefficient": 11.5,
           "variable": "w[Hermansboda]"
         },
         {
-          "coefficient": 12.0,
+          "coefficient": 11.5,
           "variable": "w[Ljunga]"
         },
         {
-          "coefficient": 12.0,
+          "coefficient": 11.5,
           "variable": "w[Nederede]"
         },
         {
-          "coefficient": 12.0,
+          "coefficient": 11.5,
           "variable": "w[Skallbole]"
         },
         {
-          "coefficient": 12.0,
+          "coefficient": 11.5,
           "variable": "w[Matfors]"
         },
         {
-          "coefficient": 12.0,
+          "coefficient": 11.5,
           "variable": "w[Viforsen]"
         },
         {
@@ -162,7 +162,7 @@
             "variable": "l[Flasjon]_out"
           },
           {
-            "coefficient": 168.0,
+            "coefficient": 1.0,
             "variable": "Q[Flasjon]"
           },
           {
@@ -195,7 +195,7 @@
             "variable": "l[Holsmjon]_out"
           },
           {
-            "coefficient": 168.0,
+            "coefficient": 1.0,
             "variable": "Q[Holsmjon]"
           },
           {
@@ -542,7 +542,7 @@
       },
       "set": {
         "type": "EqualTo",
-        "value": -1.73
+        "value": -1.58
       }
     },
     {
@@ -552,7 +552,7 @@
       },
       "set": {
         "type": "EqualTo",
-        "value": -1.73
+        "value": -1.58
       }
     },
     {
