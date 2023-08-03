@@ -3,13 +3,13 @@
         {
             "dischargepoint": "Flasjon",
             "totalvolume": 4e4,
-            "currentvolume": 3.5e4,
+            "currentvolume": 2e4,
             "maxvolume":4e4
         },
         {
             "dischargepoint": "Holsmjon",
             "totalvolume": 1.92e4,
-            "currentvolume": 1.8e4,
+            "currentvolume": 0.8e4,
             "maxvolume":1.92e4
         }
     ],

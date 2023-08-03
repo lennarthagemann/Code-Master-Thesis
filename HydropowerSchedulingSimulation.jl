@@ -237,7 +237,7 @@ function OptimizationRound(
         for p in parts
             for r in res
                 nominations[p][node][r] = round(nominations[p][node][r]; digits = 4)
-                nominations_ant[p][node][r]round(nominations_ant[p][node][r]; digits = 4)
+                nominations_ant[p][node][r] = round(nominations_ant[p][node][r]; digits = 4)
             end
         end
     end
@@ -335,6 +335,7 @@ INITIAL_RESERVOIR = Dict{Reservoir, Float64}(r => r.currentvolume for r in res)
 INITIAL_INDIVIDUAL_RESERVOIR = Dict{Participant, Dict{Reservoir, Float64}}(p => Dict(r => p.individual_reservoir[r] for r in res) for p in parts)
 
 part_plants = Dict{Participant, Array{HydropowerPlant}}(p => p.plants for p in parts)
+
 # ---------------------- 1 Probability Distributions ------------------- #
 # 1. Get the big set of two dimensional uncertainty: prices and inflow
 # 2. Define scenario-wise uncertainty sets: Deterministic, but different stage-wise
