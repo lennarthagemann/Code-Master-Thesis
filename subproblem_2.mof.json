@@ -6,12 +6,6 @@
   },
   "variables": [
     {
-      "name": "x[1,1]_in"
-    },
-    {
-      "name": "x[2,1]_in"
-    },
-    {
       "name": "l[Flasjon]_in"
     },
     {
@@ -27,22 +21,10 @@
       "name": "u_start[Flasjo]_in"
     },
     {
-      "name": "Qnom[Flasjon]_in"
-    },
-    {
-      "name": "Qnom[Holsmjon]_in"
-    },
-    {
       "name": "f[Flasjon]"
     },
     {
       "name": "f[Holsmjon]"
-    },
-    {
-      "name": "x[1,1]_out"
-    },
-    {
-      "name": "x[2,1]_out"
     },
     {
       "name": "l[Flasjon]_out"
@@ -51,13 +33,16 @@
       "name": "l[Holsmjon]_out"
     },
     {
-      "name": "Qnom[Flasjon]_out"
+      "name": "Qnom[Flasjon]"
     },
     {
-      "name": "Qnom[Holsmjon]_out"
+      "name": "Qnom[Holsmjon]"
     },
     {
-      "name": "y[1]"
+      "name": "Qadj[Flasjon]"
+    },
+    {
+      "name": "Qadj[Holsmjon]"
     },
     {
       "name": "w[1,Flasjo]"
@@ -78,12 +63,6 @@
       "name": "Qreal[1,Holsmjon]"
     },
     {
-      "name": "Qadj[Flasjon]"
-    },
-    {
-      "name": "Qadj[Holsmjon]"
-    },
-    {
       "name": "Pover[Parteboda]"
     },
     {
@@ -93,7 +72,7 @@
       "name": "s[Holsmjon]"
     },
     {
-      "name": "x30"
+      "name": "x23"
     },
     {
       "name": "u_start[Flasjo]_out"
@@ -135,330 +114,26 @@
       "type": "ScalarAffineFunction",
       "terms": [
         {
-          "coefficient": 0.904,
-          "variable": "y[1]"
-        },
-        {
-          "coefficient": -0.7,
-          "variable": "z_up[1]"
-        },
-        {
-          "coefficient": 0.3,
+          "coefficient": 0.1,
           "variable": "z_down[1]"
         },
         {
-          "coefficient": -0.1,
+          "coefficient": -1.0,
+          "variable": "z_up[1]"
+        },
+        {
+          "coefficient": -0.2,
           "variable": "d[1,Flasjo]"
         },
         {
-          "coefficient": -1.0,
-          "variable": "a[Flasjon]"
-        },
-        {
-          "coefficient": -1.0,
-          "variable": "a[Holsmjon]"
-        },
-        {
           "coefficient": 1.0,
-          "variable": "x30"
+          "variable": "x23"
         }
       ],
       "constant": 0.0
     }
   },
   "constraints": [
-    {
-      "name": "balance_ind[Flasjon]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": -1.0,
-            "variable": "lind[Flasjon]_in"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "Qnom[Flasjon]_out"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "s[Flasjon]"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "lind[Flasjon]_out"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 10.0
-      }
-    },
-    {
-      "name": "balance_ind[Holsmjon]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": -1.0,
-            "variable": "lind[Holsmjon]_in"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "Qnom[Holsmjon]_out"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "s[Holsmjon]"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "lind[Holsmjon]_out"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 10.0
-      }
-    },
-    {
-      "name": "adjustedflow[Flasjon]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": -1.84,
-            "variable": "Qnom[Flasjon]_in"
-          },
-          {
-            "coefficient": 4.5200000000000005,
-            "variable": "Qadj[Flasjon]"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.804
-      }
-    },
-    {
-      "name": "adjustedflow[Holsmjon]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": 2.68,
-            "variable": "Qadj[Holsmjon]"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.804
-      }
-    },
-    {
-      "name": "powerswap[Flasjon]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": -1.84,
-            "variable": "Qnom[Flasjon]_in"
-          },
-          {
-            "coefficient": 1.84,
-            "variable": "Qadj[Flasjon]"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "Pover[Parteboda]"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "Pswap[Flasjon]"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
-    {
-      "name": "powerswap[Holsmjon]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": 1.0,
-            "variable": "Pover[Parteboda]"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "Pswap[Holsmjon]"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
-    {
-      "name": "endcond[Flasjo]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": 1.0,
-            "variable": "u_start[Flasjo]_out"
-          },
-          {
-            "coefficient": -1.0,
-            "variable": "u[1,Flasjo]"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
-    {
-      "name": "startcond[Flasjo]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": 1.0,
-            "variable": "u_start[Flasjo]_in"
-          },
-          {
-            "coefficient": -1.0,
-            "variable": "u[1,Flasjo]"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
-    {
-      "name": "clearing[1]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": -0.904,
-            "variable": "x[1,1]_in"
-          },
-          {
-            "coefficient": -0.09599999999999997,
-            "variable": "x[2,1]_in"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "y[1]"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
-    {
-      "name": "nomination[Flasjon]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": 1.0,
-            "variable": "Qreal[1,Flasjon]"
-          },
-          {
-            "coefficient": -1.0,
-            "variable": "Qadj[Flasjon]"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
-    {
-      "name": "nomination[Holsmjon]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": 1.0,
-            "variable": "Qreal[1,Holsmjon]"
-          },
-          {
-            "coefficient": -1.0,
-            "variable": "Qadj[Holsmjon]"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
-    {
-      "name": "obligation[1]",
-      "function": {
-        "type": "ScalarAffineFunction",
-        "terms": [
-          {
-            "coefficient": 1.0,
-            "variable": "y[1]"
-          },
-          {
-            "coefficient": -1.0,
-            "variable": "w[1,Flasjo]"
-          },
-          {
-            "coefficient": -1.0,
-            "variable": "z_up[1]"
-          },
-          {
-            "coefficient": 1.0,
-            "variable": "z_down[1]"
-          },
-          {
-            "coefficient": -1.0,
-            "variable": "Pswap[Flasjon]"
-          },
-          {
-            "coefficient": -1.0,
-            "variable": "Pswap[Holsmjon]"
-          }
-        ],
-        "constant": 0.0
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
     {
       "name": "balance[Flasjon]",
       "function": {
@@ -526,16 +201,74 @@
       }
     },
     {
-      "name": "active[1,Flasjo]",
+      "name": "balance_ind[Flasjon]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.0,
+            "variable": "lind[Flasjon]_in"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Qnom[Flasjon]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "s[Flasjon]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "lind[Flasjon]_out"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.8
+      }
+    },
+    {
+      "name": "balance_ind[Holsmjon]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.0,
+            "variable": "lind[Holsmjon]_in"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Qnom[Holsmjon]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "s[Holsmjon]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "lind[Holsmjon]_out"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.8
+      }
+    },
+    {
+      "name": "startcond[Flasjo]",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
             "coefficient": 1.0,
-            "variable": "w[1,Flasjo]"
+            "variable": "u_start[Flasjo]_in"
           },
           {
-            "coefficient": -0.1798,
+            "coefficient": -1.0,
             "variable": "u[1,Flasjo]"
           }
         ],
@@ -547,17 +280,17 @@
       }
     },
     {
-      "name": "production[1,Flasjo]",
+      "name": "endcond[Flasjo]",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
             "coefficient": 1.0,
-            "variable": "w[1,Flasjo]"
+            "variable": "u_start[Flasjo]_out"
           },
           {
-            "coefficient": -0.31,
-            "variable": "Qeff[1,Flasjo]"
+            "coefficient": -1.0,
+            "variable": "u[1,Flasjo]"
           }
         ],
         "constant": 0.0
@@ -565,6 +298,157 @@
       "set": {
         "type": "EqualTo",
         "value": 0.0
+      }
+    },
+    {
+      "name": "adjustedflow[Flasjon]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -0.4070796460176991,
+            "variable": "Qnom[Flasjon]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Qadj[Flasjon]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.4743362831858407
+      }
+    },
+    {
+      "name": "adjustedflow[Holsmjon]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 1.0,
+            "variable": "Qadj[Holsmjon]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.7999999999999999
+      }
+    },
+    {
+      "name": "powerswap[Flasjon]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.84,
+            "variable": "Qnom[Flasjon]"
+          },
+          {
+            "coefficient": 1.84,
+            "variable": "Qadj[Flasjon]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Pover[Parteboda]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Pswap[Flasjon]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "powerswap[Holsmjon]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": 1.0,
+            "variable": "Pover[Parteboda]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Pswap[Holsmjon]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "nomination[Flasjon]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.0,
+            "variable": "Qadj[Flasjon]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Qreal[1,Flasjon]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "nomination[Holsmjon]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -1.0,
+            "variable": "Qadj[Holsmjon]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Qreal[1,Holsmjon]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "EqualTo",
+        "value": 0.0
+      }
+    },
+    {
+      "name": "overnomination[Parteboda]",
+      "function": {
+        "type": "ScalarAffineFunction",
+        "terms": [
+          {
+            "coefficient": -0.27,
+            "variable": "Qadj[Holsmjon]"
+          },
+          {
+            "coefficient": 1.0,
+            "variable": "Pover[Parteboda]"
+          }
+        ],
+        "constant": 0.0
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": -0.378
       }
     },
     {
@@ -610,38 +494,38 @@
       }
     },
     {
-      "name": "overnomination[Parteboda]",
+      "name": "active[1,Flasjo]",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
-            "coefficient": -0.27,
-            "variable": "Qadj[Holsmjon]"
+            "coefficient": 1.0,
+            "variable": "w[1,Flasjo]"
           },
           {
-            "coefficient": 1.0,
-            "variable": "Pover[Parteboda]"
+            "coefficient": -0.1798,
+            "variable": "u[1,Flasjo]"
           }
         ],
         "constant": 0.0
       },
       "set": {
-        "type": "GreaterThan",
-        "lower": -0.378
+        "type": "LessThan",
+        "upper": 0.0
       }
     },
     {
-      "name": "increasing[1,1]",
+      "name": "production[1,Flasjo]",
       "function": {
         "type": "ScalarAffineFunction",
         "terms": [
           {
             "coefficient": 1.0,
-            "variable": "x[1,1]_out"
+            "variable": "w[1,Flasjo]"
           },
           {
-            "coefficient": -1.0,
-            "variable": "x[2,1]_out"
+            "coefficient": -0.31,
+            "variable": "Qeff[1,Flasjo]"
           }
         ],
         "constant": 0.0
@@ -675,31 +559,11 @@
     {
       "function": {
         "type": "Variable",
-        "name": "x[1,1]_in"
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.1798
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "x[2,1]_in"
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.1798
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
         "name": "l[Flasjon]_in"
       },
       "set": {
         "type": "EqualTo",
-        "value": 20000.0
+        "value": 0.0
       }
     },
     {
@@ -709,7 +573,7 @@
       },
       "set": {
         "type": "EqualTo",
-        "value": 7998.6
+        "value": 8009.2
       }
     },
     {
@@ -719,7 +583,7 @@
       },
       "set": {
         "type": "EqualTo",
-        "value": 20010.0
+        "value": -34153.03478260871
       }
     },
     {
@@ -729,7 +593,7 @@
       },
       "set": {
         "type": "EqualTo",
-        "value": 8008.6
+        "value": 18000.8
       }
     },
     {
@@ -740,26 +604,6 @@
       "set": {
         "type": "EqualTo",
         "value": 1.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "Qnom[Flasjon]_in"
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 0.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "Qnom[Holsmjon]_in"
-      },
-      "set": {
-        "type": "EqualTo",
-        "value": 1.4
       }
     },
     {
@@ -785,26 +629,6 @@
     {
       "function": {
         "type": "Variable",
-        "name": "x[1,1]_out"
-      },
-      "set": {
-        "type": "GreaterThan",
-        "lower": 0.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "x[2,1]_out"
-      },
-      "set": {
-        "type": "GreaterThan",
-        "lower": 0.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
         "name": "l[Flasjon]_out"
       },
       "set": {
@@ -825,7 +649,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "Qnom[Flasjon]_out"
+        "name": "Qnom[Flasjon]"
       },
       "set": {
         "type": "GreaterThan",
@@ -835,7 +659,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "Qnom[Holsmjon]_out"
+        "name": "Qnom[Holsmjon]"
       },
       "set": {
         "type": "GreaterThan",
@@ -845,7 +669,17 @@
     {
       "function": {
         "type": "Variable",
-        "name": "y[1]"
+        "name": "Qadj[Flasjon]"
+      },
+      "set": {
+        "type": "GreaterThan",
+        "lower": 0.0
+      }
+    },
+    {
+      "function": {
+        "type": "Variable",
+        "name": "Qadj[Holsmjon]"
       },
       "set": {
         "type": "GreaterThan",
@@ -915,26 +749,6 @@
     {
       "function": {
         "type": "Variable",
-        "name": "Qadj[Flasjon]"
-      },
-      "set": {
-        "type": "GreaterThan",
-        "lower": 0.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "Qadj[Holsmjon]"
-      },
-      "set": {
-        "type": "GreaterThan",
-        "lower": 0.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
         "name": "Pover[Parteboda]"
       },
       "set": {
@@ -965,31 +779,11 @@
     {
       "function": {
         "type": "Variable",
-        "name": "x30"
+        "name": "x23"
       },
       "set": {
         "type": "GreaterThan",
         "lower": 0.0
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "x[1,1]_out"
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 0.1798
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "x[2,1]_out"
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 0.1798
       }
     },
     {
@@ -1015,26 +809,6 @@
     {
       "function": {
         "type": "Variable",
-        "name": "Qnom[Flasjon]_out"
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 0.58
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
-        "name": "Qnom[Holsmjon]_out"
-      },
-      "set": {
-        "type": "LessThan",
-        "upper": 1.4
-      }
-    },
-    {
-      "function": {
-        "type": "Variable",
         "name": "w[1,Flasjo]"
       },
       "set": {
@@ -1055,7 +829,7 @@
     {
       "function": {
         "type": "Variable",
-        "name": "x30"
+        "name": "x23"
       },
       "set": {
         "type": "LessThan",
@@ -1123,7 +897,7 @@
             "output_index": 2,
             "scalar_term": {
               "coefficient": 1.0,
-              "variable": "Qnom[Flasjon]_out"
+              "variable": "Qnom[Flasjon]"
             }
           }
         ],
@@ -1136,7 +910,7 @@
         "type": "Indicator",
         "set": {
           "type": "LessThan",
-          "upper": 10.0
+          "upper": 0.8
         },
         "activate_on": "one"
       }
@@ -1157,7 +931,7 @@
             "output_index": 2,
             "scalar_term": {
               "coefficient": 1.0,
-              "variable": "Qnom[Holsmjon]_out"
+              "variable": "Qnom[Holsmjon]"
             }
           }
         ],
@@ -1170,41 +944,7 @@
         "type": "Indicator",
         "set": {
           "type": "LessThan",
-          "upper": 10.0
-        },
-        "activate_on": "one"
-      }
-    },
-    {
-      "name": "NoSpill[Flasjo]",
-      "function": {
-        "type": "VectorAffineFunction",
-        "terms": [
-          {
-            "output_index": 1,
-            "scalar_term": {
-              "coefficient": 1.0,
-              "variable": "BALANCE_INDICATOR[Flasjon]"
-            }
-          },
-          {
-            "output_index": 2,
-            "scalar_term": {
-              "coefficient": 1.0,
-              "variable": "Qnom[Flasjon]_out"
-            }
-          }
-        ],
-        "constants": [
-          0.0,
-          0.0
-        ]
-      },
-      "set": {
-        "type": "Indicator",
-        "set": {
-          "type": "LessThan",
-          "upper": 0.58
+          "upper": 0.8
         },
         "activate_on": "one"
       }
@@ -1238,7 +978,7 @@
         "type": "Indicator",
         "set": {
           "type": "LessThan",
-          "upper": 0.0
+          "upper": -0.0
         },
         "activate_on": "zero"
       }
@@ -1272,7 +1012,7 @@
         "type": "Indicator",
         "set": {
           "type": "LessThan",
-          "upper": 0.0
+          "upper": -0.0
         },
         "activate_on": "zero"
       }
