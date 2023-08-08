@@ -183,7 +183,7 @@ function Nonanticipatory_Bidding(
     mu_up = 1.0,
     mu_down = 0.1,
     riskmeasure = SDDP.Expectation(),
-    printlevel = 1,
+    printlevel = 0,
     stopping_rule = SDDP.BoundStalling(10, 1e-4),
     T = 24,
     Stages = stages,
@@ -295,7 +295,7 @@ function Anticipatory_Bidding(
     mu_up = 1.0,
     mu_down = 0.1,
     riskmeasure = SDDP.Expectation(),
-    printlevel = 1,
+    printlevel = 0,
     stall_bound = SDDP.BoundStalling(10, 1e-4),
     T = 24,
     Stages = stages,
@@ -394,7 +394,7 @@ function Anticipatory_Bidding(
         optimizer = CPLEX.Optimizer
     )
 
-    SDDP.train(model_ant; iteration_limit=100, stopping_rules = [stopping_rule], duality_handler = DualityHandler)
+    SDDP.train(model_ant; iteration_limit=100, stopping_rules = [stopping_rule], duality_handler = DualityHandler, print_level = printlevel)
 
     rule_ant = SDDP.DecisionRule(model_ant; node = 1)
     sol_ant = SDDP.evaluate(
@@ -428,7 +428,7 @@ function ShortTermScheduling(
     mu_up = 1.0,
     mu_down = 0,
     riskmeasure = SDDP.Expectation(),
-    printlevel = 1,
+    printlevel = 0,
     stopping_rule = [SDDP.BoundStalling(10, 1e-4)],
     T = 24,
     Stages = stages,
@@ -441,28 +441,19 @@ function ShortTermScheduling(
         # State Variables
         @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = r.currentvolume)
         @variable(subproblem, lind[r = R], SDDP.State, initial_value = j.individualreservoir[r])
-        @variable(subproblem, u_start[k = K_j], SDDP.State, initial_value = 1, Bin)
+        @variable(subproblem, u_start[k = K_j], SDDP.State, initial_value = 0, Bin)
         # Control Variables
-        @variable(subproblem, 0 <= Qnom[r = R])# <= max([k.spillreference for k in filter(k -> k.reservoir in find_ds_reservoirs(r), K)]...))
-        @variable(subproblem, Qadj[r = R] >= 0)
+        @variable(subproblem, 0 <= Qnom[r = R] <= 10000)
         @variable(subproblem, d[t = 1:T, k = K_j], Bin)
         @variable(subproblem, u[t = 1:T, k = K_j], Bin)
         @variable(subproblem, BALANCE_INDICATOR[r = R], Bin)
         @variable(subproblem, 0 <= w[t = 1:T, k = K_j] <= k.equivalent * k.spillreference)
         @variable(subproblem, 0 <= Qeff[t = 1:T, k = K_j] <= k.spillreference)
         @variable(subproblem, 0 <= Qreal[t = 1:T, r = R])
-        @variable(subproblem, Pswap[r = R])
-        @variable(subproblem, Pover[k = K_O] >= 0)
         @variable(subproblem, s[r = R] >= 0)
         @variable(subproblem, a[r = R])
         # Random Variables
         @variable(subproblem, f[r = R] >= 0)
-        # Transition Function
-        if node == 1
-            @constraint(subproblem, balance[r = R], l[r].out == l[r].in - T * Qadj[r] - s[r])
-        else
-            @constraint(subproblem, balance[r = R], l[r].out == l[r].in - T * Qadj[r] + f[r] * T - s[r])
-        end
         @constraint(subproblem, balance_ind[r = R], lind[r].out == lind[r].in - T * (Qnom[r] - Qref[r])- s[r]) 
         @constraint(subproblem, startcond[k = K_j], u_start[k].in == u[1,k])
         @constraint(subproblem, endcond[k = K_j], u_start[k].out == u[T,k])
@@ -470,15 +461,22 @@ function ShortTermScheduling(
         if node == 1
             @variable(subproblem, z_up[t = 1:T] >= 0)
             @variable(subproblem, z_down[t = 1:T] >= 0)
+            @variable(subproblem, Qadj[r = R] >= 0)
+            @variable(subproblem, Pswap[r = R])
+            @variable(subproblem, Pover[k = K_O] >= 0)
+            @constraint(subproblem, balance[r = R], l[r].out == l[r].in - T * Qadj[r] - s[r])
             @constraint(subproblem, obligation[t = 1:T], y[t]  == sum(w[t,k] for k in K_j) + sum(Pswap[r] for r in R) + z_up[t] - z_down[t])
+            @constraint(subproblem, powerswap[r = R], Pswap[r] == j.participationrate[r] * (Qnom[r] - Qadj[r]) - sum(Pover[k] for k in K_O))
+            @constraint(subproblem, overnomination[k = K_O], Pover[k] >= k.equivalent * (Qadj[k.reservoir] - k.spillreference))
+            @constraint(subproblem, adjustedflow[r = R], Qadj[r] == (Qnom[r] * j.participationrate[r] + QnomO[(participant = j, reservoir = r)] * O.participationrate[r]) / (j.participationrate[r] + O.participationrate[r]))
+            @constraint(subproblem, nomination[r = R], sum(Qreal[t,r] for t in 1:T) == T * Qadj[r])
+        else
+            @constraint(subproblem, balance[r = R], l[r].out == l[r].in - T * Qnom[r] + f[r] * T - s[r])
+            @constraint(subproblem, nomination[r = R], sum(Qreal[t,r] for t in 1:T) == T * Qnom[r])
         end
         @constraint(subproblem, nbal1[r = R], BALANCE_INDICATOR[r] => {Qnom[r] <= Qref[r]})
         @constraint(subproblem, nbal2[r = R], !BALANCE_INDICATOR[r] => {0 <= lind[r].in})
         @constraint(subproblem, NoSpill[r = R], BALANCE_INDICATOR[r] => {sum(Qnom[r_up] for r_up in find_us_reservoir(r)) <= min([k.spillreference for k in filter(k -> k.reservoir == r, K)]...)})
-        @constraint(subproblem, adjustedflow[r = R], Qadj[r] == (Qnom[r] * j.participationrate[r] + QnomO[(participant = j, reservoir = r)] * O.participationrate[r]) / (j.participationrate[r] + O.participationrate[r]))
-        @constraint(subproblem, powerswap[r = R], Pswap[r] == j.participationrate[r] * (Qnom[r] - Qadj[r]) - sum(Pover[k] for k in K_O))
-        @constraint(subproblem, overnomination[k = K_O], Pover[k] >= k.equivalent * (Qadj[k.reservoir] - k.spillreference))
-        @constraint(subproblem, nomination[r = R], sum(Qreal[t,r] for t in 1:T) == T * Qadj[r])
         @constraint(subproblem, active[t = 1:T, k = K_j], w[t,k] <= u[t,k] * k.spillreference * k.equivalent)
         @constraint(subproblem, startup[t = 1:T-1, k = K_j], d[t,k] >= u[t+1,k] - u[t,k])
         @constraint(subproblem, production[t = 1:T, k = K_j], w[t,k] <= Qeff[t,k] * k.equivalent)
@@ -493,15 +491,13 @@ function ShortTermScheduling(
                     JuMP.fix(f[r], om.inflow, force=true)
                 end
                 # Include only active variables in stageobjective
-                if node == 1
-                    # Fixed Price and Obligation
-                    @stageobjective(subproblem, sum(price[t] * y[t] + mu_down * z_down[t] - mu_up * z_up[t] - S * sum(d[t,k] for k in K_j) for t in 1:T) - sum(a[r] for r in R))
-                else
-                    @stageobjective(subproblem, sum(om.price[t] * (sum(w[t,k] for k in K_j) + sum(Pswap[r] for r in R)) - S * sum(d[t,k] for k in K_j) for t in 1:T) - sum(a[r] for r in R))
-                end
+                @stageobjective(subproblem, sum(om.price[t] * sum(w[t,k] for k in K_j) - S * sum(d[t,k] for k in K_j) for t in 1:T) - sum(a[r] for r in R))
             end
+        else
+            # Fixed Price and delivery in first stage, only think about minimum water value loss and productions costs
+            @stageobjective(subproblem, sum(Prices[1][t] * y[t] - mu_up * z_up[t] + mu_down * z_down[t] - S * sum(d[t,k] for k in K_j) for t in 1:T) - sum(a[r] for r in R))
         end
-    return
+        return
     end
 
     model_short = SDDP.LinearPolicyGraph(
@@ -512,7 +508,7 @@ function ShortTermScheduling(
         optimizer  = optimizer
     )   
 
-    SDDP.train(model_short; iteration_limit = 10, stopping_rules = stopping_rule)
+    SDDP.train(model_short; iteration_limit = 10, stopping_rules = stopping_rule, print_level = printlevel)
 
     rule_short = SDDP.DecisionRule(model_short; node = 1)
 
