@@ -546,27 +546,27 @@ function RealTimeBalancing(
     T = 24,
     mu_up = 1.0,
     mu_down = 0.01)
-K_j = j.plants
-model_balancing = JuMP.Model(CPLEX.Optimizer)
-# Variables
-@variable(model_balancing, 0 <= z_up[t = 1:T])
-@variable(model_balancing, 0 <= z_down[t = 1:T])
-@variable(model_balancing, 0 <= w[t = 1:T, k = K_j] <= k.equivalent * k.spillreference)
-@variable(model_balancing, u[t = 1:T, k = K_j], Bin)
-@variable(model_balancing, d[t = 1:T, k = K_j], Bin)
-@variable(model_balancing, Qreal[t = 1:T, r = R])
+    K_j = j.plants
+    model_balancing = JuMP.Model(CPLEX.Optimizer)
+    # Variables
+    @variable(model_balancing, 0 <= z_up[t = 1:T])
+    @variable(model_balancing, 0 <= z_down[t = 1:T])
+    @variable(model_balancing, 0 <= w[t = 1:T, k = K_j] <= k.equivalent * k.spillreference)
+    @variable(model_balancing, u[t = 1:T, k = K_j], Bin)
+    @variable(model_balancing, d[t = 1:T, k = K_j], Bin)
+    @variable(model_balancing, Qreal[t = 1:T, r = R])
 
-# Constraints
-@constraint(model_balancing, obligation[t = 1:T], y[t] == sum(w[t,k] for k in K_j) + sum(Pswap[r] for r in R) + z_up[t] - z_down[t])
-@constraint(model_balancing, adjustedflow[r = R], sum(Qreal[t, r] for t in 1:T) == T * Qadj[r])
-@constraint(model_balancing, production[t = 1:T, k = K_j], w[t,k] <= sum(Qreal[t, r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
-@constraint(model_balancing, unit[t = 1:T, k = K_j], w[t,k] <= u[t,k] * k.equivalent * k.spillreference)
-@constraint(model_balancing, startup[t = 2:T, k = K_j], d[t ,k] >= u[t,k] - u[t-1,k])
-# Objective
-@objective(model_balancing, Min, sum(mu_up * z_up[t] - mu_down * z_down[t] + sum(S * d[t, k] for k in K_j) for t in 1:T))
-optimize!(model_balancing)
-println(objective_value(model_balancing))
-return model_balancing, value.(z_up), value.(z_down)
+    # Constraints
+    @constraint(model_balancing, obligation[t = 1:T], y[t] == sum(w[t,k] for k in K_j) + sum(Pswap[r] for r in R) + z_up[t] - z_down[t])
+    @constraint(model_balancing, adjustedflow[r = R], sum(Qreal[t, r] for t in 1:T) == T * Qadj[r])
+    @constraint(model_balancing, production[t = 1:T, k = K_j], w[t,k] <= sum(Qreal[t, r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
+    @constraint(model_balancing, unit[t = 1:T, k = K_j], w[t,k] <= u[t,k] * k.equivalent * k.spillreference)
+    @constraint(model_balancing, startup[t = 2:T, k = K_j], d[t ,k] >= u[t,k] - u[t-1,k])
+    # Objective
+    @objective(model_balancing, Min, sum(mu_up * z_up[t] - mu_down * z_down[t] + sum(S * d[t, k] for k in K_j) for t in 1:T))
+    optimize!(model_balancing)
+    println(objective_value(model_balancing))
+    return model_balancing, value.(z_up), value.(z_down)
 end
 
 #=
@@ -642,5 +642,5 @@ end
 
 Revenues = CalculateRevenues(J, y, sample, Upregulation, Downregulation)
 for j in J
-    println("Revenues of producer $(j.name) : ", Revenues[j])
+    println("Revenues of producer $(j.name) : ", Revenues[j], " Dollar")
 end
