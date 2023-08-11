@@ -865,28 +865,28 @@ function ShortTermScheduling(
         optimizer  = optimizer
         )   
         
-        SDDP.train(model_short; iteration_limit = 10, stopping_rules = stopping_rule, print_level = printlevel)
-        
-        rule_short = SDDP.DecisionRule(model_short; node = 1)
-        
-        sol_short = SDDP.evaluate(
-            rule_short;
-            incoming_state = Dict(Symbol("l[$(r.dischargepoint)]") => r.currentvolume for r in R),
-            controls_to_record = [:Qnom],
-            )
-            Qnom = _collect_solution_Short(sol_short, R, j)
-            return Qnom
-        end
+    SDDP.train(model_short; iteration_limit = 10, stopping_rules = stopping_rule, print_level = printlevel)
+    
+    rule_short = SDDP.DecisionRule(model_short; node = 1)
+    
+    sol_short = SDDP.evaluate(
+        rule_short;
+        incoming_state = Dict(Symbol("l[$(r.dischargepoint)]") => r.currentvolume for r in R),
+        controls_to_record = [:Qnom],
+        )
+    Qnom = _collect_solution_Short(sol_short, R, j)
+    return Qnom
+end
 
-        #=
-        _____________________________________________________________________________________
-        -                              Real Time Balancing                                  -
-        _____________________________________________________________________________________
-        
-        =#
-        
-        """
-        Deterministic model to solve final optimization problem where an optimal usage of power plants and balancing market is looked for.
+#=
+_____________________________________________________________________________________
+-                              Real Time Balancing                                  -
+_____________________________________________________________________________________
+
+=#
+
+"""
+Deterministic model to solve final optimization problem where an optimal usage of power plants and balancing market is looked for.
 Returns the balancing actions, which are then used to calculate the total profits made over the planning day.
 """
 function RealTimeBalancing(
@@ -920,6 +920,180 @@ function RealTimeBalancing(
     set_silent(model_balancing)
     optimize!(model_balancing)
     return model_balancing, value.(z_up), value.(z_down)
+end
+
+#=
+_____________________________________________________________________________________
+-                              Single Owner Models                                  -
+_____________________________________________________________________________________
+
+=#
+
+function SingleOwnerBdding(
+    R::Array{Reservoir},
+    K::Array{HydropowerPlant},
+    PPoints::Array{Float64},
+    Omega,
+    P;
+    mu_up = 1.0,
+    mu_down = 0.1,
+    S = 0.3,
+    riskmeasure = SDDP.Expectation(),
+    printlevel = 1,
+    stopping_rule = [SDDP.BoundStalling(10, 1e-4)],
+    T = 24,
+    Stages = stages,
+    optimizer = CPLEX.Optimizer,
+    DualityHandler = SDDP.ContinuousConicDuality())
+    function subproblem_builder_single_bidding(subproblem::Model, node::Int64)
+        # State Variables
+        @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = r.currentvolume)
+        @variable(subproblem, ustart[k = K], Bin, SDDP.State, initial_value = 0)
+        @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= sum(k.equivalent * k.spillreference for k in K), SDDP.State, initial_value = 0)
+        # Transition Function
+        @constraint(subproblem, increasing[i = 1:I, t=1:T], x[i,t].out <= x[i+1,t].out)
+        if node == 1
+            # We only concern ourselves with bidding in the first stage.
+            @stageobjective(subproblem, 0)
+            @constraint(subproblem, balance_transfer[r = R], l[r].out == l[r].in) # No Inflow In first stage (or fixed value)
+            @constraint(subproblem, start_transfer[k = K], ustart[k].out == ustart[k].in)
+        else
+            # Some Constraints and variables such as production specific components only become relevant in stage >= 2
+            @variable(subproblem, y[t = 1:T] >= 0)
+            @variable(subproblem, a[r = R])
+            @variable(subproblem, 0 <= Qreal[t = 1:T, r = R])
+            @variable(subproblem, 0 <= w[t = 1:T, k = K] <= k.equivalent * k.spillreference)
+            @variable(subproblem, u[t = 1:T, k = K], Bin)
+            @variable(subproblem, d[t = 1:T, k = K], Bin)
+            @variable(subproblem, s[r = R] >= 0)
+            @variable(subproblem, z_up[t = 1:T] >= 0)
+            @variable(subproblem, z_down[t = 1:T] >= 0)
+            # Random Variables
+            @variable(subproblem, f[r = R])
+            @constraint(subproblem, watervalue[r = R], a[r] >= sum(k.equivalent for k in filter( k-> k.reservoir in find_ds_reservoirs(r), K)) * (l[r].in - l[r].out) * 0.5)
+            @constraint(subproblem, clearing[t=1:T], y[t] == sum(1* x[i,t].in +  1* x[i+1,t].in for i in 1:I-1))
+            @constraint(subproblem, balance[r = R], l[r].out == l[r].in - sum(Qreal[t,r] for t in 1:T) + T * f[r] - s[r])
+            @constraint(subproblem, planttrans1[k = K], ustart[k].in == u[1,k])
+            @constraint(subproblem, planttrans2[k = K], ustart[k].out == u[T,k])
+            # Constraints
+            @constraint(subproblem, startup[t = 1:T-1, k = K], d[t,k] >= u[t+1,k] - u[t,k])
+            @constraint(subproblem, activeplant[t = 1:T, k = K], w[t,k] <= u[t,k] * k.equivalent * k.spillreference)
+            @constraint(subproblem, production[t = 1:T, k = K], w[t,k] <= sum(Qreal[t, r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
+            @constraint(subproblem, obligation[t = 1:T], y[t] == sum(w[t, k] for k in K) + z_up[t] - z_down[t])
+            # Parameterize Uncertainty and Objective Function
+            SDDP.parameterize(subproblem, Omega, P) do om
+                for r in R
+                    JuMP.fix(f[r], om.inflow[r], force=true)
+                end
+                # Define Set of active variables for each hour
+                I_t = Dict(t => 0 for t in 1:T)
+                for t in 1:T
+                    for i in 1:I
+                        if (om.price[t] >= PPoints[i]) && (om.price[t] <= PPoints[i+1])
+                            I_t[t] = i
+                        end
+                    end
+                end
+                # Parameterize objective through uncertain price
+                @stageobjective(subproblem, sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t]  - sum(S * d[t,k] for k in K) - sum(a[r] for r in R) for t in 1:T))
+                # Fix / Deactivate constraints by setting their coefficients to appropriate values or all zero.
+                for t in 1:T
+                    for i in 1:I
+                        if (i == I_t[t])
+                            set_normalized_coefficient(clearing[t], x[i,t].in, -((om.price[t] - PPoints[i])/(PPoints[i+1] - PPoints[i])))
+                            set_normalized_coefficient(clearing[t], x[i+1,t].in, -((PPoints[i+1] - om.price[t])/(PPoints[i+1] - PPoints[i])))
+                        else
+                            set_normalized_coefficient(clearing[t], x[i,t].in, 0)
+                            set_normalized_coefficient(clearing[t], x[i+1,t].in, 0)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    model_single_bidding = SDDP.LinearPolicyGraph(subproblem_builder_single_bidding; stages = Stages, sense = :Max,
+    upper_bound = Stages * sum(sum(k.spillreference * k.equivalent for k in K) for t in 1:T for s in 1:Stages), optimizer = optimizer)
+    SDDP.train(model_single_bidding; stopping_rules = stopping_rule, iteration_limit = 10, print_level = printlevel)
+    rule_single_bidding = SDDP.DecisionRule(model_single_bidding; node = 1)
+    sol_single_bidding = SDDP.evaluate(
+        rule_single_bidding;
+        incoming_state = Dict(Symbol("l[$(r.dischargepoint)]") => r.currentvolume for r in R),
+        controls_to_record = [:x],
+    )
+    return 
+end
+
+function SingleOwnerScheduling(R::Array{Reservoir},
+    K::Array{HydropowerPlant},
+    y_initial::Dict{Int64, Float64},
+    price::Vector{Float64},
+    f_initial::Dict{Reservoir, Float64},
+    Omega,
+    P;
+    mu_up = 1.0,
+    mu_down = 0.1,
+    riskmeasure = SDDP.Expectation(),
+    printlevel = 1,
+    stopping_rule = [SDDP.BoundStalling(10, 1e-4)],
+    T = 24,
+    Stages = stages,
+    optimizer = CPLEX.Optimizer)
+    function subproblem_builder_single_short(subproblem::Model, node::Int64)
+        # State Variables
+        @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = r.currentvolume)
+        @variable(subproblem, ustart[k = K], Bin, SDDP.State, initial_value = 0)
+        # Control Variables
+        @variable(subproblem, y[t = 1:T])
+        @variable(subproblem, Q[t = 1:T, r = R] >= 0)
+        @variable(subproblem, 0 <= w[t = 1:T, k = K] <= k.spillreference * k.equivalent)
+        @variable(subproblem, 0 <= u[t = 1:T, k = K], Bin)
+        @variable(subproblem, 0 <= d[t = 1:T, k = K], Bin)
+        @variable(subproblem, s[r = R] >= 0)
+        @variable(subproblem, a[r = R])
+        # Random Variables
+        @variable(subproblem, f[r = R])
+    
+        # Transition function
+        @constraint(subproblem, balance[r = R], l[r].out == l[r].in - sum(Q[t, r] for t in 1:T) + T * f[r] - s[r])
+        @constraint(subproblem, planttrans1[k = K], ustart[k].in == u[1,k])
+        @constraint(subproblem, planttrans2[k = K], ustart[k].out == u[T,k])
+        # Constraints
+        if node == 1
+            @variable(subproblem, z_up[t = 1:T] >= 0)
+            @variable(subproblem, z_down[t = 1:T] >= 0)
+            @constraint(subproblem, obligation[t = 1:T], y[t] == sum(w[t,k] for k in K) + z_up[t] - z_down[t])
+        end
+        @constraint(subproblem, startup[t = 1:T-1, k = K], d[t,k] >= u[t+1,k] - u[t,k])
+        @constraint(subproblem, activeplant[t = 1:T, k = K], w[t,k] <= u[t,k] * k.equivalent * k.spillreference)
+        @constraint(subproblem, production[t = 1:T, k = K], w[t,k] <= sum(Q[t, r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
+        @constraint(subproblem, watervalue[r = R], a[r] >= sum(k.equivalent for k in filter(k -> k.reservoir in find_ds_reservoirs(r), K)) * (l[r].in - l[r].out) * 0.5)
+        # Parameterize Uncertainty
+        SDDP.parameterize(subproblem, Omega, P) do om
+            if node == 1
+                for t in 1:T
+                    JuMP.fix(y[t], y_initial[t])
+                end
+                for r in R
+                    JuMP.fix(f[r], f_initial[r])
+                end
+                @stageobjective(subproblem, sum(price[t] * y[t] - mu_up * z_up[t] + mu_down * z_down[t]  - sum(S * d[t,k] for k in K) for t in 1:T) -sum(a[r] for r in R))
+            else
+                for r in R
+                    JuMP.fix(f[r], om.inflow[r])
+                end
+                @stageobjective(subproblem, sum(om.price[t] * sum(w[t, k] for k in K) - sum(S * d[t, k] for k in K) for t in 1:T) - sum(a[r] for r in R))
+            end
+        end
+    end
+    model_single_short = SDDP.LinearPolicyGraph(subproblem_builder_single_short;
+    stages = Stages, sense = :Max, upper_bound = Stages * T * sum(k.spillreference * k.equivalent for k in K), optimizer = optimizer)
+
+    SDDP.train(model_single_short; iteration_limit = 10, stopping_rules = stopping_rule, print_level = printlevel)
+
+    rule_single_short = SDDP.DecisionRule(model_single_short; node = 1)
+    sol_single_short = SDDP.evaluate(rule_single_short; incoming_state = Dict(Symbol("l[$(r.dischargepoint)]") => r.currentvolume for r in R),
+    controls_to_record = [:Q, :u, :d],)
+    return
 end
 
 end
