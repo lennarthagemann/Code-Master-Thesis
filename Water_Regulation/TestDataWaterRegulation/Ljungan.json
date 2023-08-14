@@ -2,15 +2,15 @@
     "Reservoirs":[ 
         {
             "dischargepoint": "Flasjon",
-            "totalvolume": 4e4,
-            "currentvolume": 2e4,
-            "maxvolume":4e4
+            "totalvolume": 4e3,
+            "currentvolume": 2e3,
+            "maxvolume":4e3
         },
         {
             "dischargepoint": "Holsmjon",
-            "totalvolume": 1.92e4,
-            "currentvolume": 0.8e4,
-            "maxvolume":1.92e4
+            "totalvolume": 1.92e3,
+            "currentvolume": 8e2,
+            "maxvolume":1.92e3
         }
     ],
 
@@ -19,79 +19,79 @@
             "name": "Flasjo",
             "reservoir": "Flasjon",
             "equivalent": 0.31,
-            "spillreference": 5.8e-1
+            "spillreference": 58
         }, 
         {
             "name": "Trangfors",
             "reservoir": "Flasjon",
             "equivalent": 0.72,
-            "spillreference": 1.05e0
+            "spillreference": 105
         }, 
         {
             "name": "Ratan",
             "reservoir": "Flasjon",
             "equivalent": 0.55,
-            "spillreference": 1.15e0
+            "spillreference": 115
         }, 
         {
             "name": "Turinge",
             "reservoir": "Flasjon",
             "equivalent": 0.19,
-            "spillreference": 1.05e0
+            "spillreference": 105
         }, 
         {
             "name": "Bursnas",
             "reservoir": "Flasjon",
             "equivalent": 0.07,
-            "spillreference": 1.05e0
+            "spillreference": 105
         }, 
         {
             "name": "Jarnvagsforsen",
             "reservoir": "Holsmjon",
             "equivalent": 0.74,
-            "spillreference": 1.45e0
+            "spillreference": 145
         }, 
         {
             "name": "Parteboda",
             "reservoir": "Holsmjon",
             "equivalent": 0.27,
-            "spillreference": 1.4e0
+            "spillreference": 140
         }, 
         {
             "name": "Hermansboda",
             "reservoir": "Holsmjon",
             "equivalent": 0.1,
-            "spillreference": 1.4e0
+            "spillreference": 140
         }, 
         {
             "name": "Ljunga",
             "reservoir": "Holsmjon",
             "equivalent": 0.45,
-            "spillreference": 1.45e0
+            "spillreference": 145
         }, 
         {
             "name": "Nederede",
             "reservoir": "Holsmjon",
             "equivalent": 0.07,
-            "spillreference": 2.4e0
+            "spillreference": 240
         }, 
         {
             "name": "Skallbole",
             "reservoir": "Holsmjon",
             "equivalent": 0.18,
-            "spillreference": 2.65e0
+            "spillreference": 265
         }, 
         {
             "name": "Matfors",
             "reservoir": "Holsmjon",
             "equivalent": 0.8,
-            "spillreference": 2.5e0
+            "spillreference": 250
         }, 
         {
             "name": "Viforsen",
             "reservoir": "Holsmjon",
             "equivalent": 0.07,
-            "spillreference":1.6e0
+            "spillreference":160
         }
     ],
     "Participants":[ 
@@ -103,8 +103,8 @@
                 "Holsmjon": 0.0
             },
             "individualreservoir": {
-                "Flasjon": 1.5e4,
-                "Holsmjon": 1.8e4
+                "Flasjon": 1.5e3,
+                "Holsmjon": 1.8e3
             } 
         },
         {
@@ -116,7 +116,7 @@
             },
             "individualreservoir": {
                 "Flasjon": 1e3,
-                "Holsmjon": 1.4e4
+                "Holsmjon": 1.4e3
             } 
         },
         {
@@ -127,7 +127,7 @@
                 "Holsmjon": 1.07
             },
             "individualreservoir": {
-                "Flasjon": 2e4,
+                "Flasjon": 2e3,
                 "Holsmjon": 1.2e2
             } 
         }
