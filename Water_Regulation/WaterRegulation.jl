@@ -5,7 +5,7 @@ using Printf
 using JuMP
 using CPLEX
 using SDDP
-export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, ShortTermScheduling, RealTimeBalancing
+export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, ShortTermScheduling, RealTimeBalancing, MediumTermModel, WaterValueCuts
  
 mutable struct Reservoir
     dischargepoint::String
@@ -541,7 +541,8 @@ function Nonanticipatory_Bidding(
     j::Participant,
     PPoints::Array{Float64},
     Omega,
-    P;
+    P,
+    iteration_count::Int64;
     mu_up = 1.0,
     mu_down = 0.1,
     riskmeasure = SDDP.Expectation(),
@@ -634,7 +635,7 @@ function Nonanticipatory_Bidding(
         optimizer = optimizer
         )
         
-        SDDP.train(model; iteration_limit = 100, stopping_rules = [stopping_rule], duality_handler = DualityHandler, print_level = printlevel)
+        SDDP.train(model; iteration_limit = iteration_count, stopping_rules = [stopping_rule], duality_handler = DualityHandler, print_level = printlevel)
         
         rule = SDDP.DecisionRule(model; node = 1)
         sol = SDDP.evaluate(
@@ -753,7 +754,7 @@ function Nonanticipatory_Bidding(
         optimizer = CPLEX.Optimizer
         )
         
-        SDDP.train(model_ant; iteration_limit=100, stopping_rules = [stopping_rule], duality_handler = DualityHandler, print_level = printlevel)
+        SDDP.train(model_ant; iteration_limit = iteration_count, stopping_rules = [stopping_rule], duality_handler = DualityHandler, print_level = printlevel)
         
         rule_ant = SDDP.DecisionRule(model_ant; node = 1)
         sol_ant = SDDP.evaluate(
@@ -783,7 +784,8 @@ function ShortTermScheduling(
     price::Vector{Float64},
     QnomO::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64},
     Omega,
-    P;
+    P,
+    iteration_count::Int64;
     mu_up = 1.0,
     mu_down = 0.1,
     riskmeasure = SDDP.Expectation(),
@@ -865,7 +867,7 @@ function ShortTermScheduling(
         optimizer  = optimizer
         )   
         
-    SDDP.train(model_short; iteration_limit = 10, stopping_rules = stopping_rule, print_level = printlevel)
+    SDDP.train(model_short; iteration_limit = iteration_count, stopping_rules = stopping_rule, print_level = printlevel)
     
     rule_short = SDDP.DecisionRule(model_short; node = 1)
     
@@ -934,7 +936,8 @@ function SingleOwnerBdding(
     K::Array{HydropowerPlant},
     PPoints::Array{Float64},
     Omega,
-    P;
+    P,
+    iteration_count::Int64;
     mu_up = 1.0,
     mu_down = 0.1,
     S = 0.3,
@@ -1013,7 +1016,7 @@ function SingleOwnerBdding(
     end
     model_single_bidding = SDDP.LinearPolicyGraph(subproblem_builder_single_bidding; stages = Stages, sense = :Max,
     upper_bound = Stages * sum(sum(k.spillreference * k.equivalent for k in K) for t in 1:T for s in 1:Stages), optimizer = optimizer)
-    SDDP.train(model_single_bidding; stopping_rules = stopping_rule, iteration_limit = 10, print_level = printlevel)
+    SDDP.train(model_single_bidding; stopping_rules = stopping_rule, iteration_limit = iteration_count, print_level = printlevel)
     rule_single_bidding = SDDP.DecisionRule(model_single_bidding; node = 1)
     sol_single_bidding = SDDP.evaluate(
         rule_single_bidding;
@@ -1029,10 +1032,10 @@ function SingleOwnerScheduling(R::Array{Reservoir},
     price::Vector{Float64},
     f_initial::Dict{Reservoir, Float64},
     Omega,
-    P;
+    P,
+    iteration_count;
     mu_up = 1.0,
     mu_down = 0.1,
-    riskmeasure = SDDP.Expectation(),
     printlevel = 1,
     stopping_rule = [SDDP.BoundStalling(10, 1e-4)],
     T = 24,
@@ -1088,7 +1091,7 @@ function SingleOwnerScheduling(R::Array{Reservoir},
     model_single_short = SDDP.LinearPolicyGraph(subproblem_builder_single_short;
     stages = Stages, sense = :Max, upper_bound = Stages * T * sum(k.spillreference * k.equivalent for k in K), optimizer = optimizer)
 
-    SDDP.train(model_single_short; iteration_limit = 10, stopping_rules = stopping_rule, print_level = printlevel)
+    SDDP.train(model_single_short; iteration_limit = iteration_count, stopping_rules = stopping_rule, print_level = printlevel)
 
     rule_single_short = SDDP.DecisionRule(model_single_short; node = 1)
     sol_single_short = SDDP.evaluate(rule_single_short; incoming_state = Dict(Symbol("l[$(r.dischargepoint)]") => r.currentvolume for r in R),
@@ -1097,6 +1100,107 @@ function SingleOwnerScheduling(R::Array{Reservoir},
 end
 
 end
+
+#=
+_____________________________________________________________________________________
+-                    Medium Term Model & Water Value Cuts                           -
+_____________________________________________________________________________________
+
+=#
+
+"""
+
+MediumTermModel(R, K, Omega, P, Stages; iterations, stopping_rule, printlevel, loop)
+
+"""
+function MediumTermModel(
+    R::Vector{Reservoir},
+    K::Vector{HydropowerPlant},
+    Ω,
+    P,
+    Stages::Int64,
+    iterations::Int64;
+    stopping_rule = [SDDP.BoundStalling(10, 1e1)],
+    printlevel = 1,
+    loop = true
+)
+    function subproblem_builder_medium(subproblem::Model, node::Int64)
+        # State Variables
+        @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, initial_value = r.currentvolume/2, SDDP.State)
+        # Control Variables
+        @variable(subproblem, Q[r = R] >= 0)
+        @variable(subproblem, s[r = R] >= 0)
+        @variable(subproblem, w[k = K] <= k.spillreference * k.equivalent)
+        # Random Variables
+        @variable(subproblem, f[r = R])
+        # Transition Function 
+        @constraint(subproblem, balance[r = R],  l[r].out == l[r].in -  Q[r] + f[r] - s[r])
+        # Constraints
+        # @constraint(subproblem, balance_limits[r = R], lmin[node] <=  l[r].out <= lmax[node])
+        @constraint(subproblem, production[k = K], w[k] <= sum(Q[r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
+        # Objective
+        # Parameterize Uncertainty
+        SDDP.parameterize(subproblem, Ω[node], P[node]) do om
+            for r in R
+                JuMP.fix(f[r], om.inflow[r])
+            end
+            @stageobjective(subproblem, om.price * sum(w[k] for k in K))
+        end
+    end
+
+    graph = SDDP.LinearGraph(Stages)
+    # We can choose to solve an infinite horizon model, so that the 
+    if loop
+        SDDP.add_edge(graph, Stages => 1, 0.8)
+    end
+    model_medium = SDDP.PolicyGraph(
+    subproblem_builder_medium,
+    graph;
+    sense = :Max,
+    upper_bound = sum(r.currentvolume * 300 * sum(k.equivalent for k in filter(k -> k.reservoir in find_ds_reservoirs(r), K)) * 5 for r in R),
+    optimizer = CPLEX.Optimizer)
+
+    SDDP.train(
+        model_medium;
+        iteration_limit = iterations,
+        stopping_rules = stopping_rule,
+        print_level = printlevel)
+    
+    V = SDDP.ValueFunction(model_medium; node = 1)
+    return model_medium, V
+end
+
+
+"""
+
+WaterValueCuts(R, V, cuts)
+
+
+For different reservoir levels, we can derive the objective value and gradient of the objective.
+Through Rearranging, we can get the water value function cut coefficients of the linear functions.
+We already have the slope (gradient, so we only need to find out the y-coordinate.) We take the current function value, and subtract the gradient * current x value.
+
+-Obtain objvalues and gradients while iterating over all cut combinations
+-Return Cuts as Named tuple describing the linear function
+
+Return: Array of Coefficients for Water value Function
+
+"""
+function WaterValueCuts(R::Vector{Reservoir}, V::SDDP.ValueFunction, cuts::Dict{Int64, Dict{Reservoir, Float64}})
+    objvalues = []
+    gradients = []
+    for i in eachindex(cuts)
+        for (r,l) in cuts[i] 
+            push!(objvalues, SDDP.evaluate(V, Dict(Symbol("l[$(r)]") => l for (r,l) in cuts[i]))[1])
+            push!(gradients, SDDP.evaluate(V, Dict(Symbol("l[$(r)]") => l for (r,l) in cuts[i]))[2])
+        end
+    end
+    ReservoirWaterValueCuts = Dict(c =>  (e1 = objvalues[i] - min(objvalues...), e2 = gradients[i]) for (i,c) in cuts)
+    return ReservoirWaterValueCuts
+end
+
+
+
 
 #=
  ------------------------------------------------------------------------ DEPRECATED --------------------------------------------------------------------------------------------------
