@@ -5,7 +5,7 @@ using Printf
 using JuMP
 using CPLEX
 using SDDP
-export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, ShortTermScheduling, RealTimeBalancing, MediumTermModel, WaterValueCuts
+export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, ShortTermScheduling, RealTimeBalancing, MediumTermModel, WaterValueCuts, prepare_pricedata, prepare_inflowdata, Inflow_Scenarios_Weekly, Price_Scenarios_Weekly, Price_Scenarios_Hourly, Create_Price_Points
  
 mutable struct Reservoir
     dischargepoint::String
@@ -1199,7 +1199,141 @@ function WaterValueCuts(R::Vector{Reservoir}, V::SDDP.ValueFunction, cuts::Dict{
     return ReservoirWaterValueCuts
 end
 
+#=
+_____________________________________________________________________________________
+-                   Scenario Generation and Data Analysis                           -
+_____________________________________________________________________________________
 
+=#
+
+"""
+    prepare_pricedata(filepath)
+
+Read in CSV Data from filepath and return it as cleaned up DataFrame.
+
+"""
+function prepare_pricedata(filepath::String)::DataFrame
+    price_data = CSV.read(filepath, DataFrame)
+    price_data = coalesce.(price_data, 46.79)
+    price_data.Average = sum.(eachrow(price_data[:, 2:end]))/24
+    rename!(price_data, :Column1 => :Date)
+    price_data.season = _get_season.(month.(price_data.Date))
+    price_data.Weekday = dayofweek.(price_data.Date)
+    price_data.Weekday = _get_weekend.(price_data.Weekday)
+    price_data.CalendarWeek = Dates.week.(price_data.Date)
+    return price_data
+end
+
+"""
+    prepare_inflowdata(filepath)
+
+Read in CSV Data from filepath and return it as cleaned up DataFrame.
+
+"""
+function prepare_inflowdata(filepath::String)::DataFrame
+    inflow_data = CSV.read(filepath, DataFrame)
+    inflow_data = coalesce.(inflow_data, 0.0)
+    inflow_data.CalendarWeek = Dates.week.(inflow_data.Date)
+    return inflow_data
+end
+
+function _get_season(month::Int64)::String
+    if month in 3:4  
+        return "Spring"
+    elseif month in 5:8  
+        return "Summer"
+    elseif month in 9:11  
+        return "Autumn"
+    else  
+        return "Winter"
+    end
+end
+
+function _get_weekend(weekday::Int64)::String
+    if weekday in 1:5
+        return "Weekday"
+    else
+        return "Weekend"
+    end
+end
+
+"""
+    Inflow_Scenarios_Weekly(inflow_data, ColumnReservoir, n, R)
+
+    Inflow Scenario generation for the Medium Term Hydropower Scheduling Model.
+    Fit a normal distribution to weekly historical observations.
+    Sample n Scenarios from this distribution. (Round Values to Zero if sampled values turn negative)
+"""
+function Inflow_Scenarios_Weekly(inflow_data::DataFrame, ColumnReservoir::Dict{Reservoir, String}, n::Int64, R::Vector{Reservoir})::Dict{Int64, Dict{Reservoir, Vector{Float64}}}
+    gd_inflow = groupby(inflow_data[! ,["Holmsjon Inflow", "Flasjon Inflow", "CalendarWeek"]], :CalendarWeek)
+    WeeklyInflowDistribution = Dict{Reservoir, Any}()
+    WeeklyInflowDistribution[R[2]] = Normal{Float64}[fit_mle(Normal{Float64}, g[!,ColumnReservoir[R[2]]]) for g in gd_inflow]
+    WeeklyInflowDistribution[R[1]] = Normal{Float64}[fit_mle(Normal{Float64}, g[!,ColumnReservoir[R[1]]]) for g in gd_inflow]
+    InflowScenarios = Dict(i => Dict(R[1] => max.(rand(WeeklyInflowDistribution[R[1]][i], n), 0),
+                                     R[2] => max.(rand(WeeklyInflowDistribution[R[2]][i], n), 0)) for i in eachindex(WeeklyInflowDistribution[R[1]]))
+
+    return InflowScenarios
+end
+
+"""
+    Price_Scenarios_Weekly(inflow_data, ColumnReservoir, n, R)
+
+    Price Scenario generation for the Medium Term Hydropower Scheduling Model.
+    Fit a distribution to weekly historical observations of Electrical Spot Prices.
+    Sample n Scenarios from this distribution. (Round Values to Zero if sampled values turn negative)
+"""
+function Price_Scenarios_Weekly(price_data::DataFrame, n::Int64)::Dict{Int64, Vector{Float64}}
+    gd = groupby(price_data[!,[:Average, :CalendarWeek]], :CalendarWeek)
+    WeeklyPriceDistribution = Rayleigh{Float64}[fit_mle(Rayleigh{Float64}, g[!,:Average]) for g in gd]
+    PriceScenarios = Dict(i => max.(rand(WeeklyPriceDistribution[i], n), 0) for i in eachindex(WeeklyPriceDistribution))
+    return PriceScenarios
+end
+
+
+"""
+    Price_Scenarios_Hourly(price_data, n)
+
+    Create stagewise uncertain hourly price scenarios.
+    Sample n Prices from the quantiles of historical observations from price_data.
+"""
+function Price_Scenarios_Hourly(price_data::DataFrame, n::Int64; quantile_bounds = 0.1, S::Int64 = stage_count)::Dict{Int64, Vector{Vector{Float64}}}
+    price_quantiles = quantile(price_data.Average, range(quantile_bounds, 1 - quantile_bounds, length = n+1))
+    price_subsets = Dict(i => price_data[(price_data.Average .>= price_quantiles[i]) .& (price_data.Average .<= price_quantiles[i+1]), :] for i in 1:n)
+    price_scenarios = Dict{Int64, Vector{Any}}(i => [collect(values(row)) for row in eachrow(select(price_subsets[i], Not([:Date, :Weekday, :season, :Average])))] for  i in 1:n)
+    PriceScenariosHourly::Dict{Int64, Vector{Vector{Float64}}} = Dict(s =>  [price_scenarios[scen][rand(1:length(price_scenarios[scen]))] for scen in 1:n] for s in 1:S)
+    return PriceScenariosHourly
+end
+
+"""
+    Create_Price_Points(price_data, n)
+
+    Based on historical hourly price data price_data, create n+2 Price Points to be used as reference.
+    The first and last Price Points are Technical Parameters [MIN_PRICE, ... ,MAX_PRICE] so that all Bids are
+    within technical limits of NordPool.
+    The middle Price Points are chosen based on density of prices (Quantiles)
+"""
+function Create_Price_Points(price_data::DataFrame, n::Int64; quantile_bounds = 0)::Vector{Float64}
+    return [0, quantile(price_data.Average, range(quantile_bounds, 1 - quantile_bounds, length = n+1))...]
+end
+
+"""
+    BalanceParameters(PriceScenariosHourly)
+
+    From generated Price Scenarios, determine up and down balancing penalty values.
+    These are chosen as the min/max value of observed prices in the scenarios, so that it is never more profitable
+    to use the balancing market in comparison to the day ahead market.
+"""
+function BalanceParameters(PriceScenariosHourly::Dict{Int64, Vector{Vector{Float64}}})::Tuple{Float64, Float64}
+    mu_up = -Inf
+    mu_down = Inf
+    for (k,values) in values(PriceScenariosHourly)
+        for v in values
+            mu_up = max(maximum(v), mu_up)
+            mu_down = min(minimum(v), mu_down)
+        end
+    end
+    return mu_up, mu_down
+end
 
 
 #=
