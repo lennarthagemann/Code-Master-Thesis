@@ -5,7 +5,13 @@ using Printf
 using JuMP
 using CPLEX
 using SDDP
-export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, ShortTermScheduling, RealTimeBalancing, MediumTermModel, WaterValueCuts, prepare_pricedata, prepare_inflowdata, Inflow_Scenarios_Weekly, Price_Scenarios_Weekly, Price_Scenarios_Hourly, Create_Price_Points, create_Ω_medium, CalculateReferenceFlow, AverageReservoirLevel
+using UUIDs
+using Serialization
+using DataFrames
+using CSV
+using Dates
+using Distributions
+export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, ShortTermScheduling, RealTimeBalancing, MediumTermModel, WaterValueCuts, prepare_pricedata, prepare_inflowdata, Inflow_Scenarios_Short, Inflow_Scenarios_Medium, Price_Scenarios_Medium, BalanceParameters, Price_Scenarios_Short, Create_Price_Points, create_Ω_Nonanticipatory, create_Ω_medium, ReservoirLevelCuts, CalculateReferenceFlow, AverageReservoirLevel, MediumModelsAllParticipants, SaveMediumModel, ReadMediumModel
  
 mutable struct Reservoir
     dischargepoint::String
@@ -478,7 +484,7 @@ This is the main function: here the entire water regulation process in one step 
 - real and individual reservoirs are updated
 
 """
-function water_regulation(Qnom::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}, Qref::Dict{Reservoir, Float64}, T::Int64)
+function water_regulation(Qnom::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}, Qref::Dict{Reservoir, Float64}, T::Int64, update_res::Bool)
     parts = unique([nom.participant for nom in keys(Qnom)])
     plants = vcat([part.plants for part in parts]...)
     QnomTot_prev = Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}() 
@@ -487,11 +493,13 @@ function water_regulation(Qnom::Dict{NamedTuple{(:participant, :reservoir), Tupl
     end 
     Qmax = CalculateQmax(QnomTot_prev, Qref)
     Qadj, Qnom, QadjTot, QnomTot = adjust_flow!(Qnom, Qmax)
-    update_reservoir(Qadj, T)
-    update_ind_reservoir(Qnom, Qref)
     MaxEnergy = Calculate_Ersmax(plants, QadjTot)
     POver, ΣPOver = Calculate_POver(Qnom, QnomTot, Qmax)
     P_Swap = power_swap(Qnom, Qadj, POver, ΣPOver, MaxEnergy, parts)
+    if update_res == true
+        update_reservoir(Qadj, T)
+        update_ind_reservoir(Qnom, Qref)
+    end
     # Total_Power = total_power(Qadj_All, P_Swap)
     return Qadj, QadjTot, P_Swap, POver, ΣPOver, MaxEnergy
 end
@@ -500,10 +508,17 @@ end
 
 # --------------------------- Optimization Functions from SDDP -------------------------------------- 
 
+#=
+_____________________________________________________________________________________
+-                    Helper Functions (Obtain Solutions, Read Data)                 -
+_____________________________________________________________________________________
+
+=#
+
 """
 Helper Function to extract solution from Bidding Problem
 """
-function _collect_solution_Bidding(sol, R, j; T = T)
+function _collect_solution_Bidding(sol, R, j, T)
     ks = sort(collect(keys(sol[2])))
     Qnom = Dict{Reservoir, Float64}(r => 0.0 for r in R)
     for r in R
@@ -529,6 +544,39 @@ function _collect_solution_Short(sol, R, j; T = T)::Dict{Reservoir, Float64}
 end
 
 
+"""
+    SaveMediumModel(savepath::String, WaterValueDict::Dict{Participant, SDDP.PolicyGraph})
+
+    Save the trained Medium Models for all participants WaterValueDict at savepath.
+    A UUID is created to guarantee identification during deserialization
+"""
+function SaveMediumModel(savepath::String, WaterValueDict::Dict{Participant, SDDP.PolicyGraph})
+    serialized_dict = Dict{UUID, Tuple{String, SDDP.PolicyGraph{Int64}}}()
+    for (key, value) in WaterValueDict
+        uuid = UUIDs.uuid4()
+        serialized_dict[uuid] = (key.name, value)
+    end
+    open(f -> serialize(f, serialized_dict), savepath, "w")
+    return
+end
+
+"""
+ReadMediumModel(savepath::String, NameToParticipant::Dict{String, Participant})
+
+read in serialized Dictionary of Medium Models for each participant at savepath.
+    NameToParticipant is used to create link between (immutable) string and old Participant Object.
+"""
+
+function ReadMediumModel(savepath::String, NameToParticipant::Dict{String, Participant})
+    serialized_data = open(deserialize, savepath, "r")
+    dict = Dict{Participant, SDDP.PolicyGraph{Int64}}()
+    for (uuid, (original_key, value)) in serialized_data
+        dict[NameToParticipant[original_key]] = value
+    end
+    return dict
+end
+
+
 #=
 _____________________________________________________________________________________
 -                                Bidding Problems                                   -
@@ -542,39 +590,45 @@ function Nonanticipatory_Bidding(
     PPoints::Array{Float64},
     Omega,
     P,
+    Qref::Dict{Reservoir, Float64},
     cuts,
     WaterCuts,
-    iteration_count::Int64;
-    mu_up = 1.0,
-    mu_down = 0.1,
+    iteration_count::Int64,
+    mu_up::Float64,
+    mu_down::Float64,
+    T::Int64,
+    Stages::Int64;
+    S = 200,
     riskmeasure = SDDP.Expectation(),
     printlevel = 1,
     stopping_rule = SDDP.BoundStalling(10, 1e-4),
-    T = 24,
-    Stages = stages,
     optimizer = CPLEX.Optimizer,
     DualityHandler = SDDP.ContinuousConicDuality())
     
     K_j = j.plants
     R = collect(filter(r -> j.participationrate[r] > 0.0, all_res))
+    I = length(PPoints) - 1
     function subproblem_builder_nonanticipatory(subproblem::Model, node::Int64)
         @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= sum(k.equivalent * k.spillreference for k in K_j), SDDP.State, initial_value=0)
         @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = r.currentvolume)
         @variable(subproblem, lind[r = R], SDDP.State, initial_value = r.currentvolume)
         @variable(subproblem, u_start[k = K_j], SDDP.State, initial_value = 0, Bin)
-        @variable(subproblem, 0 <= Qnom[r = R] <= max([k.spillreference for k in filter(k -> k.reservoir in find_ds_reservoirs(r), K)]...), SDDP.State, initial_value = 0)
+        @variable(subproblem, 0 <= Qnom[r = R] <= max([k.spillreference for k in filter(k -> k.reservoir in find_ds_reservoirs(r), K_j)]...), SDDP.State, initial_value = 0)
         @variable(subproblem, BALANCE_INDICATOR[r = R], Bin)
         @variable(subproblem, s[r = R] >= 0)
         @variable(subproblem, a)
         @constraint(subproblem, increasing[i = 1:I, t=1:T], x[i,t].out <= x[i+1,t].out)
-        @constraint(subproblem, balance_ind[r = R], lind[r].out == lind[r].in - T * (Qnom[r].out - Qref[r])- s[r]) 
+        @constraint(subproblem, balance_ind[r = R], lind[r].out == lind[r].in - (Qnom[r].out - Qref[r])- s[r]) 
         @constraint(subproblem, nbal1[r = R], BALANCE_INDICATOR[r] => {Qnom[r].out <= Qref[r]})
         @constraint(subproblem, nbal2[r = R], !BALANCE_INDICATOR[r] => {0 <= lind[r].in})
         @constraint(subproblem, NoSpill[k = K_j], BALANCE_INDICATOR[k.reservoir] => {sum(Qnom[r_up].out for r_up in find_us_reservoir(k.reservoir)) <= k.spillreference})
-        @constraint(subproblem, watervalue[c = values(cuts)], a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
+        for (k,c) in cuts
+            @constraint(subproblem, a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
+            @constraint(subproblem, a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
+        end
         if node == 1
             @stageobjective(subproblem, a)
-            @constraint(subproblem, balance_transfer[r = R], l[r].out == l[r].in - T * Qnom[r].out - s[r]) 
+            @constraint(subproblem, balance_transfer[r = R], l[r].out == l[r].in - Qnom[r].out - s[r]) 
             @constraint(subproblem, start_transfer[k = K_j] , u_start[k].out == u_start[k].in)
         else
             @variable(subproblem, 0 <= w[t=1:T, k = K_j] <= k.equivalent * k.spillreference)
@@ -594,12 +648,12 @@ function Nonanticipatory_Bidding(
             @constraint(subproblem, active[t=1:T, k=K_j], w[t,k] <= u[t,k] * k.spillreference * k.equivalent)
             @constraint(subproblem, startup[t=1:T-1, k=K_j], d[t,k] >= u[t+1,k] - u[t,k])
             @constraint(subproblem, production[t=1:T, k=K_j], w[t,k] <= sum(Qreal[t,r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
-            SDDP.parameterize(subproblem, Omega, P) do om
+            SDDP.parameterize(subproblem, Omega[node], P[node]) do om
                 # We have to make sure that depending on the market clearing price, the coefficients are set accordingly.
                 # The recourse action only applies to the real delivery, determined by the uncertain price. The other restricitions become inactive, else they make the problem infeasible.
                 # The constraints that are relevant are maintained in Scenario_Index for every current time step.
                 for r in R
-                    JuMP.fix(f[r], om.inflow, force=true)
+                    JuMP.fix(f[r], om.inflow[r], force=true)
                 end
                 # Define Set of active variables for each hour
                 I_t = Dict(t => 0 for t in 1:T)
@@ -633,7 +687,7 @@ function Nonanticipatory_Bidding(
         subproblem_builder_nonanticipatory;
         stages = Stages,
         sense = :Max,
-        upper_bound = 1e5,
+        upper_bound = sum(k.equivalent for k in K_j) * sum(r.maxvolume for r in R) * mu_up * Stages,
         optimizer = optimizer
         )
         
@@ -644,30 +698,30 @@ function Nonanticipatory_Bidding(
         rule;
         incoming_state = Dict(Symbol("l[$(r.dischargepoint)]") => r.currentvolume for r in R),
         controls_to_record = [:l, :x, :Qnom],
-        )
+    )
+
+    Qnom, BiddingCurves = _collect_solution_Bidding(sol, R, j, T)
+    return Qnom, BiddingCurves
+end
         
-        Qnom, BiddingCurves = _collect_solution_Bidding(sol, R, j)
-        return Qnom, BiddingCurves
-    end
-        
-    function Anticipatory_Bidding(
-        R::Array{Reservoir},
-        j::Participant,
-        PPoints::Array{Float64},
-        Omega,
-        P,
-        cuts,
-        WaterCuts,
-        iteration_count;
-        mu_up = 1.0,
-        mu_down = 0.1,
-        riskmeasure = SDDP.Expectation(),
-        printlevel = 1,
-        stopping_rule = SDDP.BoundStalling(10, 1e-4),
-        T = 24,
-        Stages = stages,
-        optimizer = CPLEX.Optimizer,
-        DualityHandler = SDDP.ContinuousConicDuality())
+function Anticipatory_Bidding(
+    R::Array{Reservoir},
+    j::Participant,
+    PPoints::Array{Float64},
+    Omega,
+    P,
+    cuts,
+    WaterCuts,
+    iteration_count;
+    mu_up = 1.0,
+    mu_down = 0.1,
+    riskmeasure = SDDP.Expectation(),
+    printlevel = 1,
+    stopping_rule = SDDP.BoundStalling(10, 1e-4),
+    T = 24,
+    Stages = stages,
+    optimizer = CPLEX.Optimizer,
+    DualityHandler = SDDP.ContinuousConicDuality())
             
     K_j = j.plants
     O, K_O = OtherParticipant(J, j, R)
@@ -1030,7 +1084,7 @@ function SingleOwnerBdding(
         incoming_state = Dict(Symbol("l[$(r.dischargepoint)]") => r.currentvolume for r in R),
         controls_to_record = [:x],
     )
-    return 
+    return sol_single_bidding
 end
 
 function SingleOwnerScheduling(R::Array{Reservoir},
@@ -1108,7 +1162,6 @@ function SingleOwnerScheduling(R::Array{Reservoir},
     return
 end
 
-end
 
 #=
 _____________________________________________________________________________________
@@ -1123,8 +1176,9 @@ MediumTermModel(R, K, Omega, P, Stages; iterations, stopping_rule, printlevel, l
 
 """
 function MediumTermModel(
-    R::Vector{Reservoir},
+    all_res::Vector{Reservoir},
     K::Vector{HydropowerPlant},
+    j,
     Ω,
     P,
     Stages::Int64,
@@ -1132,7 +1186,8 @@ function MediumTermModel(
     stopping_rule = [SDDP.BoundStalling(10, 1e1)],
     printlevel = 1,
     loop = true
-)
+)   
+    R = collect(filter(r -> j.participationrate[r] > 0, all_res))
     function subproblem_builder_medium(subproblem::Model, node::Int64)
         # State Variables
         @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, initial_value = r.currentvolume/2, SDDP.State)
@@ -1158,7 +1213,7 @@ function MediumTermModel(
     end
 
     graph = SDDP.LinearGraph(Stages)
-    # We can choose to solve an infinite horizon model, so that the 
+    # We can choose to solve an infinite horizon model, so that the Reservoir is not always empty at the end of the horizon
     if loop
         SDDP.add_edge(graph, Stages => 1, 0.8)
     end
@@ -1195,7 +1250,9 @@ We already have the slope (gradient, so we only need to find out the y-coordinat
 Return: Array of Coefficients for Water value Function
 
 """
-function WaterValueCuts(V::SDDP.ValueFunction, cuts::Dict{Int64, Dict{Reservoir, Float64}})
+function WaterValueCuts(model_medium::SDDP.PolicyGraph{Int64}, cuts::Dict{Int64, Dict{Reservoir, Float64}}, week::Int64)
+    @assert 1 <= week <= 52
+    V = SDDP.ValueFunction(model_medium; node = week)
     objvalues = []
     gradients = []
     for i in eachindex(cuts)
@@ -1207,6 +1264,56 @@ function WaterValueCuts(V::SDDP.ValueFunction, cuts::Dict{Int64, Dict{Reservoir,
     ReservoirWaterValueCuts = Dict(c =>  (e1 = objvalues[i] - min(objvalues...), e2 = gradients[i]) for (i,c) in cuts)
     return ReservoirWaterValueCuts
 end
+
+"""
+ReservoirLevelCuts(R, K, f, week)
+    Create an Array of reservoir values used in the cut generation of the Water Value Function.
+    These Values should correspond to relevant values in the proximity of the current reservoir level. Examples:
+    - No Change (Current Reservoir Level)
+    - Low/High Inflow
+    - No/High production
+    These all give us cuts to estimate an area which is relevant to the next stages optimization.
+"""
+function ReservoirLevelCuts(all_res::Vector{Reservoir}, K::Vector{HydropowerPlant}, j::Participant, f::Dict{Reservoir, Vector{Float64}}, week::Int64, Stages::Int64)::Dict{Int64, Dict{Reservoir, Float64}}
+    @assert 1 <= week <= 52
+    R = collect(filter(r -> j.participationrate[r] > 0, all_res))
+    println(keys(f))
+    weeklyInflow = Dict(r => mean(f[r][(week - 1)*7 + 1: week * 7]) for r in R) 
+    maxGeneration  = Dict(r => max([k.spillreference for k in filter(k -> k.reservoir in  find_ds_reservoirs(r), K)]...) for r in R)
+    reservoircutvalues = Dict(r => min.(max.([r.currentvolume, r.currentvolume - maxGeneration[r] * Stages, r.currentvolume + weeklyInflow[r] * Stages, r.currentvolume + (weeklyInflow[r] - maxGeneration[r]) * Stages], 0), r.maxvolume) for r in R)
+    combs = Iterators.product(values(reservoircutvalues)...)
+    cuts = Dict(i => Dict(r => v for (r,v) in zip(keys(reservoircutvalues), combo)) for (i, combo) in enumerate(combs))
+    print(values(cuts))
+    return cuts
+end
+
+"""
+WaterValueCutsAllParticipants(J, R, c,  Ω_medium, P_medium, f, stage_count_medium, iterations, week)
+
+    For all Participants involved in the Water Regulation Procedure, generate the Water Values Cuts.
+    For the Anticipatory Problem, we additionally need the Water Value Cuts of the Other Participant (from perspecitve of each producer)
+    -Solve the Medium Term Model
+    -Obtain Water Value Cuts
+    -Return as Dictionary of Participants (one for own cuts, one for O's cuts)
+
+"""
+function MediumModelsAllParticipants(J::Vector{Participant}, R::Vector{Reservoir}, Ω_medium, P_medium, stage_count_medium, iterations)
+    MediumModelDictionary_j = Dict{Participant, SDDP.PolicyGraph}()
+    MediumModelDictionary_O = Dict{Participant, SDDP.PolicyGraph}()
+    for j in J
+        K_local = j.plants
+        O_local, K_O_local = OtherParticipant(J, j, R)
+        R_j = collect(filter(r -> j.participationrate[r] > 0.0, R))
+        R_O = collect(filter(r -> O_local.participationrate[r] > 0.0, R))
+        model_medium_j, _= MediumTermModel(R_j, K_local, j, Ω_medium, P_medium, stage_count_medium, iterations; printlevel = 0)
+        model_medium_O, _ = MediumTermModel(R_O, K_O_local, O_local, Ω_medium, P_medium, stage_count_medium, iterations; printlevel = 0)
+        MediumModelDictionary_j[j] = model_medium_j
+        MediumModelDictionary_O[j] = model_medium_O
+    end
+    return MediumModelDictionary_j, MediumModelDictionary_O
+end
+
+
 
 #=
 _____________________________________________________________________________________
@@ -1268,13 +1375,13 @@ function _get_weekend(weekday::Int64)::String
 end
 
 """
-    Inflow_Scenarios_Weekly(inflow_data, ColumnReservoir, n, R)
+    Inflow_Scenarios_Medium(inflow_data, ColumnReservoir, n, R)
 
     Inflow Scenario generation for the Medium Term Hydropower Scheduling Model.
     Fit a normal distribution to weekly historical observations.
     Sample n Scenarios from this distribution. (Round Values to Zero if sampled values turn negative)
 """
-function Inflow_Scenarios_Weekly(inflow_data::DataFrame, ColumnReservoir::Dict{Reservoir, String}, n::Int64, R::Vector{Reservoir})::Dict{Int64, Dict{Reservoir, Vector{Float64}}}
+function Inflow_Scenarios_Medium(inflow_data::DataFrame, ColumnReservoir::Dict{Reservoir, String}, n::Int64, R::Vector{Reservoir})::Dict{Int64, Dict{Reservoir, Vector{Float64}}}
     gd_inflow = groupby(inflow_data[! ,["Holmsjon Inflow", "Flasjon Inflow", "CalendarWeek"]], :CalendarWeek)
     WeeklyInflowDistribution = Dict{Reservoir, Any}()
     WeeklyInflowDistribution[R[2]] = Normal{Float64}[fit_mle(Normal{Float64}, g[!,ColumnReservoir[R[2]]]) for g in gd_inflow]
@@ -1291,20 +1398,20 @@ end
     returns inflow scenario(s) based on historical inflow data.
     As inflow is very sensitive towards time of the year, we need the current week as parameter.
 """
-function Inflow_Scenarios_Short(inflow_data, week::Int64, ColumnReservoir::Dict{Reservoir, String}, R::Vector{Reservoir}; stage_count = stage_count_short, scenario_count = scenario_count_inflows_short)::Dict{Int64, Dict{Reservoir, Vector{Float64}}}
+function Inflow_Scenarios_Short(inflow_data, week::Int64, ColumnReservoir::Dict{Reservoir, String}, R::Vector{Reservoir}, stage_count::Int64, scenario_count::Int64)::Dict{Int64, Dict{Reservoir, Vector{Float64}}}
     weekly_inflow = inflow_data[inflow_data.CalendarWeek .== week, ["Holmsjon Inflow", "Flasjon Inflow"]]
     InflowScenariosShort = Dict(i => Dict(r => max.([weekly_inflow[rand(1:nrow(weekly_inflow)), ColumnReservoir[r]] for s in 1:scenario_count], 0) for r in R) for i in 1:stage_count)
     return InflowScenariosShort
 end
 
 """
-    Price_Scenarios_Weekly(inflow_data, ColumnReservoir, n, R)
+    Price_Scenarios_Medium(inflow_data, ColumnReservoir, n, R)
 
     Price Scenario generation for the Medium Term Hydropower Scheduling Model.
     Fit a distribution to weekly historical observations of Electrical Spot Prices.
     Sample n Scenarios from this distribution. (Round Values to Zero if sampled values turn negative)
 """
-function Price_Scenarios_Weekly(price_data::DataFrame, n::Int64)::Dict{Int64, Vector{Float64}}
+function Price_Scenarios_Medium(price_data::DataFrame, n::Int64)::Dict{Int64, Vector{Float64}}
     gd = groupby(price_data[!,[:Average, :CalendarWeek]], :CalendarWeek)
     WeeklyPriceDistribution = Rayleigh{Float64}[fit_mle(Rayleigh{Float64}, g[!,:Average]) for g in gd]
     PriceScenarios = Dict(i => max.(rand(WeeklyPriceDistribution[i], n), 0) for i in eachindex(WeeklyPriceDistribution))
@@ -1313,12 +1420,12 @@ end
 
 
 """
-    Price_Scenarios_Hourly(price_data, n)
+    Price_Scenarios_Short(price_data, n)
 
     Create stagewise uncertain hourly price scenarios.
     Sample n Prices from the quantiles of historical observations from price_data.
 """
-function Price_Scenarios_Hourly(price_data::DataFrame, n::Int64; quantile_bounds = 0.1, S::Int64 = stage_count_short)::Dict{Int64, Vector{Vector{Float64}}}
+function Price_Scenarios_Short(price_data::DataFrame, n::Int64, S::Int64 = stage_count_short; quantile_bounds = 0.1)::Dict{Int64, Vector{Vector{Float64}}}
     price_quantiles = quantile(price_data.Average, range(quantile_bounds, 1 - quantile_bounds, length = n+1))
     price_subsets = Dict(i => price_data[(price_data.Average .>= price_quantiles[i]) .& (price_data.Average .<= price_quantiles[i+1]), :] for i in 1:n)
     price_scenarios = Dict{Int64, Vector{Any}}(i => [collect(values(row)) for row in eachrow(select(price_subsets[i], Not([:Date, :Weekday, :season, :Average])))] for  i in 1:n)
@@ -1376,7 +1483,7 @@ end
     Return a Dictionary of stagewise uncertainty sets.
 
 """
-function create_Ω_Nonanticipatory(PriceScenariosShort::Dict{Int64, Vector{Vector{Float64}}}, InflowScenariosShort::Dict{Int64, Dict{Reservoir, Vector{Float64}}}, R::Vector{Reservoir}; stage_count = stage_count_bidding)
+function create_Ω_Nonanticipatory(PriceScenariosShort::Dict{Int64, Vector{Vector{Float64}}}, InflowScenariosShort::Dict{Int64, Dict{Reservoir, Vector{Float64}}}, R::Vector{Reservoir}, stage_count)
     Ω = Dict(i => [(inflow = Dict(r => InflowScenariosShort[i][r][j] for r in R), price = c) for c in PriceScenariosShort[i] for j in eachindex(InflowScenariosShort[i][R[1]])] for i in 1:stage_count)
     P = Dict(s => [1/length(eachindex(Ω[s])) for i in eachindex(Ω[s])] for s in 1:stage_count)
     return Ω, P
@@ -1394,7 +1501,6 @@ function CalculateReferenceFlow(R::Array{Reservoir}, l_traj::Dict{Reservoir, Vec
     @assert 1 <= week <= 52
     weeklyTrajectory = Dict(r => mean(l_traj[r][(week - 1)*7 + 1: week * 7]) for r in R) 
     weeklyInflow = Dict(r => mean(f[r][(week - 1)*7 + 1: week * 7]) for r in R) 
-    println(weeklyTrajectory, weeklyInflow)
     Qref = Dict{Reservoir, Float64}(r => 0.0 for r in R)
     for r in R
         Qref[r] = (r.currentvolume - weeklyTrajectory[r])/7 + weeklyInflow[r]
@@ -1424,6 +1530,8 @@ function AverageReservoirLevel(R::Array{Reservoir}, inflow_data::DataFrame)
         push!(f[R[2]], sum([group[R[2]][i] for group in groups_to_sum_inflow]/length(groups_to_sum_inflow)))
     end
     return l_traj, f
+end
+
 end
 
 #=
