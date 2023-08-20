@@ -3,13 +3,13 @@
         {
             "dischargepoint": "Flasjon",
             "totalvolume": 4e3,
-            "currentvolume": 2e3,
+            "currentvolume": 2.674e3,
             "maxvolume":4e3
         },
         {
             "dischargepoint": "Holsmjon",
             "totalvolume": 1.92e3,
-            "currentvolume": 8e2,
+            "currentvolume": 1.365e3,
             "maxvolume":1.92e3
         }
     ],
@@ -44,12 +44,6 @@
             "reservoir": "Flasjon",
             "equivalent": 0.07,
             "spillreference": 105
-        }, 
-        {
-            "name": "Jarnvagsforsen",
-            "reservoir": "Holsmjon",
-            "equivalent": 0.74,
-            "spillreference": 145
         }, 
         {
             "name": "Parteboda",
@@ -92,6 +86,12 @@
             "reservoir": "Holsmjon",
             "equivalent": 0.07,
             "spillreference":160
+        },
+        {
+            "name": "Jarnvagsforsen",
+            "reservoir": "Holsmjon",
+            "equivalent": 0.74,
+            "spillreference": 145
         }
     ],
     "Participants":[ 
@@ -128,7 +128,7 @@
             },
             "individualreservoir": {
                 "Flasjon": 2e3,
-                "Holsmjon": 1.2e2
+                "Holsmjon": 1.8e2
             } 
         }
     ],

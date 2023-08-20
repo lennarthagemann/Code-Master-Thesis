@@ -11,7 +11,7 @@ using DataFrames
 using CSV
 using Dates
 using Distributions
-export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, ShortTermScheduling, RealTimeBalancing, MediumTermModel, WaterValueCuts, prepare_pricedata, prepare_inflowdata, Inflow_Scenarios_Short, Inflow_Scenarios_Medium, Price_Scenarios_Medium, BalanceParameters, Price_Scenarios_Short, Create_Price_Points, create_Ω_Nonanticipatory, create_Ω_medium, ReservoirLevelCuts, CalculateReferenceFlow, AverageReservoirLevel, MediumModelsAllParticipants, SaveMediumModel, ReadMediumModel
+export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, ShortTermScheduling, RealTimeBalancing, MediumTermModel, WaterValueCuts, prepare_pricedata, prepare_inflowdata, Inflow_Scenarios_Short, Inflow_Scenarios_Medium, Price_Scenarios_Medium, BalanceParameters, Price_Scenarios_Short, Create_Price_Points, create_Ω_Nonanticipatory, create_Ω_medium, ReservoirLevelCuts, CalculateReferenceFlow, AverageReservoirLevel, MediumModelsAllParticipants, SaveMediumModel, ReadMediumModel, MarketClearing
  
 mutable struct Reservoir
     dischargepoint::String
@@ -532,7 +532,7 @@ end
 """
 Helper Function to extract solution from ShortTermScheduling Problem.
 """
-function _collect_solution_Short(sol, R, j; T = T)::Dict{Reservoir, Float64}
+function _collect_solution_Short(sol, R::Vector{Reservoir}, j::Participant, T::Int64)::Dict{Reservoir, Float64}
     Qnom = Dict{Reservoir, Float64}(r => 0.0 for r in R)
     for r in R
         if j.participationrate[r] > 0.0
@@ -599,7 +599,6 @@ function Nonanticipatory_Bidding(
     T::Int64,
     Stages::Int64;
     S = 200,
-    riskmeasure = SDDP.Expectation(),
     printlevel = 1,
     stopping_rule = SDDP.BoundStalling(10, 1e-4),
     optimizer = CPLEX.Optimizer,
@@ -611,7 +610,7 @@ function Nonanticipatory_Bidding(
     function subproblem_builder_nonanticipatory(subproblem::Model, node::Int64)
         @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= sum(k.equivalent * k.spillreference for k in K_j), SDDP.State, initial_value=0)
         @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = r.currentvolume)
-        @variable(subproblem, lind[r = R], SDDP.State, initial_value = r.currentvolume)
+        @variable(subproblem, lind[r = R], SDDP.State, initial_value = j.individualreservoir[r])
         @variable(subproblem, u_start[k = K_j], SDDP.State, initial_value = 0, Bin)
         @variable(subproblem, 0 <= Qnom[r = R] <= max([k.spillreference for k in filter(k -> k.reservoir in find_ds_reservoirs(r), K_j)]...), SDDP.State, initial_value = 0)
         @variable(subproblem, BALANCE_INDICATOR[r = R], Bin)
@@ -620,10 +619,9 @@ function Nonanticipatory_Bidding(
         @constraint(subproblem, increasing[i = 1:I, t=1:T], x[i,t].out <= x[i+1,t].out)
         @constraint(subproblem, balance_ind[r = R], lind[r].out == lind[r].in - (Qnom[r].out - Qref[r])- s[r]) 
         @constraint(subproblem, nbal1[r = R], BALANCE_INDICATOR[r] => {Qnom[r].out <= Qref[r]})
-        @constraint(subproblem, nbal2[r = R], !BALANCE_INDICATOR[r] => {0 <= lind[r].in})
         @constraint(subproblem, NoSpill[k = K_j], BALANCE_INDICATOR[k.reservoir] => {sum(Qnom[r_up].out for r_up in find_us_reservoir(k.reservoir)) <= k.spillreference})
+        @constraint(subproblem, nbal2[r = R], !BALANCE_INDICATOR[r] => {0 <= lind[r].in})
         for (k,c) in cuts
-            @constraint(subproblem, a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
             @constraint(subproblem, a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
         end
         if node == 1
@@ -752,7 +750,9 @@ function Anticipatory_Bidding(
         @constraint(subproblem, nbal1[r = R], BALANCE_INDICATOR[r] => {Qnom[r].out <= Qref[r]})
         @constraint(subproblem, nbal2[r = R], !BALANCE_INDICATOR[r] => {0 <= lind[r].in})
         @constraint(subproblem, NoSpill[k = K_j], BALANCE_INDICATOR[k.reservoir] => {sum(Qnom[r_up].out for r_up in find_us_reservoir(k.reservoir)) <= k.spillreference})
-        @constraint(subproblem, watervalue[c = values(cuts)], a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
+        for (k,c) in cuts
+            @constraint(subproblem, a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
+        end
         if node == 1
             @stageobjective(subproblem, -sum(a[r] for r in R))
             @constraint(subproblem, balance_transfer[r = R], l[r].out == l[r].in - T * Qnom[r].out - s[r]) 
@@ -837,35 +837,41 @@ function Anticipatory_Bidding(
 
 
 function ShortTermScheduling(
-    R::Array{Reservoir},
+    all_res::Array{Reservoir},
     j::Participant,
-    y::Dict{Int64, Float64},
+    J::Vector{Participant},
+    Qref::Dict{Reservoir, Float64},
+    y::Vector{Float64},
     price::Vector{Float64},
-    QnomO::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64},
+    QnomO::Dict{Reservoir, Float64},
     Omega,
     P,
     cuts,
     WaterCuts,
-    iteration_count::Int64;
-    mu_up = 1.0,
-    mu_down = 0.1,
-    riskmeasure = SDDP.Expectation(),
+    iteration_count::Int64,
+    mu_up::Float64,
+    mu_down::Float64,
+    T::Int64,
+    Stages::Int64;
+    S = 200,
     printlevel = 1,
     stopping_rule = [SDDP.BoundStalling(10, 1e-4)],
-    T = 24,
-    Stages = stages,
     optimizer = CPLEX.Optimizer)
     
+    R = collect(filter(r -> j.participationrate[r] > 0.0, all_res))
+    println(R)
+
     K_j = j.plants
-    O, K_O = OtherParticipant(J, j, R)
-    
+    O, K_O = OtherParticipant(J, j, all_res)
+    println(j, R)
+    println("Plants: ", K_j, "\n", K_O)
     function subproblem_builder_short(subproblem::Model, node::Int64)
         # State Variables
         @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = r.currentvolume)
         @variable(subproblem, lind[r = R], SDDP.State, initial_value = j.individualreservoir[r])
         @variable(subproblem, u_start[k = K_j], SDDP.State, initial_value = 0, Bin)
         # Control Variables
-        @variable(subproblem, 0 <= Qnom[r = R] <= 10000)
+        @variable(subproblem, 0 <= Qnom[r = R] <= max([k.spillreference for k in K_j]...))
         @variable(subproblem, d[t = 1:T, k = K_j], Bin)
         @variable(subproblem, u[t = 1:T, k = K_j], Bin)
         @variable(subproblem, BALANCE_INDICATOR[r = R], Bin)
@@ -875,47 +881,50 @@ function ShortTermScheduling(
         @variable(subproblem, a)
         # Random Variables
         @variable(subproblem, f[r = R] >= 0)
-        @constraint(subproblem, balance_ind[r = R], lind[r].out == lind[r].in - T * (Qnom[r] - Qref[r])- s[r]) 
         @constraint(subproblem, startcond[k = K_j], u_start[k].in == u[1,k])
         @constraint(subproblem, endcond[k = K_j], u_start[k].out == u[T,k])
         # Constraints
         if node == 1
+            @constraint(subproblem, balance_ind[r = R], lind[r].out == lind[r].in - (Qnom[r] - Qref[r]) - s[r]) 
             @variable(subproblem, z_up[t = 1:T] >= 0)
             @variable(subproblem, z_down[t = 1:T] >= 0)
-            @variable(subproblem, Qadj[r = R] >= 0)
+            @variable(subproblem, Qadj[r = all_res] >= 0)
             @variable(subproblem, Pswap[r = R])
             @variable(subproblem, Pover[k = K_O] >= 0)
-            @constraint(subproblem, balance[r = R], l[r].out == l[r].in - T * Qadj[r] - s[r])
+            @constraint(subproblem, balance[r = R], l[r].out == l[r].in - Qadj[r] - s[r])
             @constraint(subproblem, obligation[t = 1:T], y[t]  == sum(w[t,k] for k in K_j) + sum(Pswap[r] for r in R) + z_up[t] - z_down[t])
             @constraint(subproblem, powerswap[r = R], Pswap[r] == j.participationrate[r] * (Qnom[r] - Qadj[r]) - sum(Pover[k] for k in K_O))
             @constraint(subproblem, overnomination[k = K_O], Pover[k] >= k.equivalent * (Qadj[k.reservoir] - k.spillreference))
-            @constraint(subproblem, adjustedflow[r = R], Qadj[r] == (Qnom[r] * j.participationrate[r] + QnomO[(participant = j, reservoir = r)] * O.participationrate[r]) / (j.participationrate[r] + O.participationrate[r]))
+            @constraint(subproblem, adjustedflow[r = R], Qadj[r] == (Qnom[r] * j.participationrate[r] + QnomO[r] * O.participationrate[r]) / (j.participationrate[r] + O.participationrate[r]))
             @constraint(subproblem, nomination[r = R], sum(Qreal[t,r] for t in 1:T) == T * Qadj[r])
         else
-            @constraint(subproblem, balance[r = R], l[r].out == l[r].in - T * Qnom[r] + f[r] * T - s[r])
+            @constraint(subproblem, balance[r = R], l[r].out == l[r].in - Qnom[r] + f[r] - s[r])
+            @constraint(subproblem, balance_ind[r = R], lind[r].out == lind[r].in - (Qnom[r] - Qref[r]) + f[r] - s[r]) 
             @constraint(subproblem, nomination[r = R], sum(Qreal[t,r] for t in 1:T) == T * Qnom[r])
         end
         @constraint(subproblem, nbal1[r = R], BALANCE_INDICATOR[r] => {Qnom[r] <= Qref[r]})
         @constraint(subproblem, nbal2[r = R], !BALANCE_INDICATOR[r] => {0 <= lind[r].in})
-        @constraint(subproblem, NoSpill[r = R], BALANCE_INDICATOR[r] => {sum(Qnom[r_up] for r_up in find_us_reservoir(r)) <= min([k.spillreference for k in filter(k -> k.reservoir == r, K)]...)})
+        @constraint(subproblem, NoSpill[r = R], BALANCE_INDICATOR[r] => {sum(Qnom[r_up] for r_up in find_us_reservoir(r)) <= min([k.spillreference for k in filter(k -> k.reservoir == r, vcat(K_j, K_O))]...)})
         @constraint(subproblem, startup[t = 1:T-1, k = K_j], d[t,k] >= u[t+1,k] - u[t,k])
         @constraint(subproblem, active[t = 1:T, k = K_j], w[t,k] <= u[t,k] * k.spillreference * k.equivalent)
         @constraint(subproblem, production[t = 1:T, k = K_j], w[t,k] <= sum(Qreal[t,r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
-        @constraint(subproblem, watervalue[c = values(cuts)], a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
+        for (k,c) in cuts
+            @constraint(subproblem, a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
+        end
         if node > 1
-            SDDP.parameterize(subproblem, Omega, P) do om
+            SDDP.parameterize(subproblem, Omega[node], P[node]) do om
                 # We have to make sure that depending on the market clearing price, the coefficients are set accordingly.
                 # The recourse action only applies to the real delivery, determined by the uncertain price. The other restricitions become inactive, else they make the problem infeasible.
                 # The constraints that are relevant are maiintained in Scenario_Index for every current time step.
                 for r in R
-                    JuMP.fix(f[r], om.inflow, force=true)
+                    JuMP.fix(f[r], om.inflow[r], force=true)
                 end
                 # Include only active variables in stageobjective
                 @stageobjective(subproblem, sum(om.price[t] * sum(w[t,k] for k in K_j) - S * sum(d[t,k] for k in K_j) for t in 1:T) + a)
             end
         else
             # Fixed Price and delivery in first stage, only think about minimum water value loss and productions costs
-            @stageobjective(subproblem, sum(Prices[1][t] * y[t] - mu_up * z_up[t] + mu_down * z_down[t] - S * sum(d[t,k] for k in K_j) for t in 1:T) + a)
+            @stageobjective(subproblem, sum(price[t] * y[t] - mu_up * z_up[t] + mu_down * z_down[t] - S * sum(d[t,k] for k in K_j) for t in 1:T) + a)
         end
         return
     end
@@ -924,8 +933,8 @@ function ShortTermScheduling(
         subproblem_builder_short,
         stages = Stages,
         sense = :Max,
-        upper_bound = sum(sum(sum(k.spillreference * k.equivalent * mu_up for k in K_j) for t in 1:T) for stage in 1:Stages),
-        optimizer  = optimizer
+        upper_bound = sum(mu_up * r.maxvolume for r in R) * T * Stages * sum(k.equivalent for k in K_j),
+        optimizer = optimizer
         )   
         
     SDDP.train(model_short; iteration_limit = iteration_count, stopping_rules = stopping_rule, print_level = printlevel)
@@ -937,7 +946,7 @@ function ShortTermScheduling(
         incoming_state = Dict(Symbol("l[$(r.dischargepoint)]") => r.currentvolume for r in R),
         controls_to_record = [:Qnom],
         )
-    Qnom = _collect_solution_Short(sol_short, R, j)
+    Qnom = _collect_solution_Short(sol_short, R, j, T)
     return Qnom
 end
 
@@ -957,12 +966,14 @@ function RealTimeBalancing(
     j::Participant,
     Qadj::Dict{Reservoir, Float64},
     Pswap::Dict{Reservoir, Float64},
-    y::Dict{Int64, Float64};
-    S = 0.2,
-    T = 24,
-    mu_up = 1.0,
-    mu_down = 0.01)
+    T::Int64,
+    mu_up::Float64,
+    mu_down::Float64,
+    y::Vector{Float64};
+    S::Int64 = 200)
+
     K_j = j.plants
+    u_start = Dict{HydropowerPlant, Int64}(k => 0 for k in K_j)
     model_balancing = JuMP.Model(CPLEX.Optimizer)
     # Variables
     @variable(model_balancing, 0 <= z_up[t = 1:T])
@@ -978,6 +989,7 @@ function RealTimeBalancing(
     @constraint(model_balancing, production[t = 1:T, k = K_j], w[t,k] <= sum(Qreal[t, r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
     @constraint(model_balancing, unit[t = 1:T, k = K_j], w[t,k] <= u[t,k] * k.equivalent * k.spillreference)
     @constraint(model_balancing, startup[t = 2:T, k = K_j], d[t ,k] >= u[t,k] - u[t-1,k])
+    @constraint(model_balancing, startup_first[k = K_j], u[1,k] == u_start[k])
     # Objective
     @objective(model_balancing, Min, sum(mu_up * z_up[t] - mu_down * z_down[t] + sum(S * d[t, k] for k in K_j) for t in 1:T))
     set_silent(model_balancing)
@@ -1441,8 +1453,8 @@ end
     within technical limits of NordPool.
     The middle Price Points are chosen based on density of prices (Quantiles)
 """
-function Create_Price_Points(price_data::DataFrame, n::Int64; quantile_bounds = 0)::Vector{Float64}
-    return [0, quantile(price_data.Average, range(quantile_bounds, 1 - quantile_bounds, length = n+1))...]
+function Create_Price_Points(price_data::DataFrame, n::Int64; quantile_bounds = 0.1)::Vector{Float64}
+    return [0, quantile(price_data.Average, range(quantile_bounds, 1 - quantile_bounds, length = n))..., 440]
 end
 
 """
@@ -1531,6 +1543,37 @@ function AverageReservoirLevel(R::Array{Reservoir}, inflow_data::DataFrame)
     end
     return l_traj, f
 end
+
+"""
+
+MarketClearing(price, BiddingCurves, PPoints, J, T)
+
+For a realized price, determine how much each participatn hast to deliver through linear interpolation of their bids.
+"""
+function MarketClearing(price::Vector{Float64}, BiddingCurves::Dict{Participant, Dict{Int64, Vector{Float64}}}, PPoints::Vector{Float64}, J::Vector{Participant}, T::Int64)::Dict{Participant, Vector{Float64}}
+    @assert length(PPoints) == length(BiddingCurves[J[3]][1])
+    I = length(PPoints) - 1
+    Obligation = Dict{Participant, Vector{Float64}}(j => [0.0 for i in 1:T] for j in J)
+    I_t = Dict(t => 0 for t in 1:T) # Find index of Price Points where price lies directly above
+    for t in 1:T
+        for i in 1:I
+            if (price[t] >= PPoints[i]) && (price[t] <= PPoints[i+1])
+                I_t[t] = i
+            end
+        end
+    end
+    for j in J
+        for t in 1:T
+            for i in 1:I
+                if (i == I_t[t])
+                    Obligation[j][t] = BiddingCurves[j][t][i] * ((price[t] - PPoints[i])/(PPoints[i+1] - PPoints[i])) + BiddingCurves[j][t][i+1] * ((PPoints[i+1] - price[t])/(PPoints[i+1] - PPoints[i]))
+                end
+            end
+        end
+    end
+    return Obligation
+end
+
 
 end
 
