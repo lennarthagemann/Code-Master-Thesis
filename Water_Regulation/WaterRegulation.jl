@@ -11,7 +11,7 @@ using DataFrames
 using CSV
 using Dates
 using Distributions
-export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, ShortTermScheduling, RealTimeBalancing, MediumTermModel, WaterValueCuts, prepare_pricedata, prepare_inflowdata, Inflow_Scenarios_Short, Inflow_Scenarios_Medium, Price_Scenarios_Medium, BalanceParameters, Price_Scenarios_Short, Create_Price_Points, create_Ω_Nonanticipatory, create_Ω_medium, ReservoirLevelCuts, CalculateReferenceFlow, AverageReservoirLevel, MediumModelsAllParticipants, SaveMediumModel, ReadMediumModel, MarketClearing
+export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, ShortTermScheduling, RealTimeBalancing, MediumTermModel, WaterValueCuts, prepare_pricedata, prepare_inflowdata, Inflow_Scenarios_Short, Inflow_Scenarios_Medium, Price_Scenarios_Medium, BalanceParameters, Price_Scenarios_Short, Create_Price_Points, create_Ω_Nonanticipatory, create_Ω_Anticipatory, create_Ω_medium, ReservoirLevelCuts, CalculateReferenceFlow, AverageReservoirLevel, MediumModelsAllParticipants, SaveMediumModel, ReadMediumModel, MarketClearing, OthersNomination, Final_Revenue
  
 mutable struct Reservoir
     dischargepoint::String
@@ -178,9 +178,9 @@ end
 Calculates the balance of all producer at a discharge point after nomination.
 Sets the new balance on the participant objects
 """
-function calculate_balance(Qref::Dict{Reservoir, Float64}, Qnom::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}, d::Reservoir)
+function calculate_balance(Qref::Dict{Reservoir, Float64}, Qnom::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64})
     for (nom,value) in Qnom
-        nom.part.individualreservoir[nom.res] += (Qref[nom.res] - value)*24
+        nom.part.individualreservoir[nom.res] += (Qref[nom.res] - value)
     end
 end
 
@@ -253,9 +253,9 @@ end
 """
 Update the real (!) reservoir volume after adjustment of flow 
 """
-function update_reservoir(Qadj::Dict{Reservoir, Float64}, T::Int64; round_decimal_places = 5)
+function update_reservoir(Qadj::Dict{Reservoir, Float64}; round_decimal_places = 5)
    for (d, adj) in Qadj
-        d.currentvolume -= adj*T
+        d.currentvolume -= adj
     end
 end
 
@@ -267,7 +267,7 @@ Every participant has a field balance, it is the updated by the difference of no
 function update_ind_reservoir(Qnom::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}, Qref::Dict{Reservoir, Float64})
     for (nom, value) in Qnom
         if haskey(nom.participant.individualreservoir, nom.reservoir)
-            nom.participant.individualreservoir[nom.reservoir] += (Qref[nom.reservoir] - value)*24
+            nom.participant.individualreservoir[nom.reservoir] += (Qref[nom.reservoir] - value)
         end
     end
 end
@@ -497,13 +497,31 @@ function water_regulation(Qnom::Dict{NamedTuple{(:participant, :reservoir), Tupl
     POver, ΣPOver = Calculate_POver(Qnom, QnomTot, Qmax)
     P_Swap = power_swap(Qnom, Qadj, POver, ΣPOver, MaxEnergy, parts)
     if update_res == true
-        update_reservoir(Qadj, T)
+        update_reservoir(Qadj)
         update_ind_reservoir(Qnom, Qref)
     end
     # Total_Power = total_power(Qadj_All, P_Swap)
     return Qadj, QadjTot, P_Swap, POver, ΣPOver, MaxEnergy
 end
 
+
+"""
+    OthersNomination(Qnoms, Qadj)
+
+    From own nomination and others nomination, obtain what the other participants have nominated aggregated.
+    Create a Dictionary with that information for each participant.
+
+"""
+function OthersNomination(Qnoms::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}, Qadj::Dict{Reservoir, Float64}, J::Vector{Participant}, R::Vector{Reservoir})
+    QnomO = Dict{Participant, Dict{Reservoir, Float64}}(j => Dict( r => 0.0 for r in R) for j in J)
+    for j in J
+        O, K_O = OtherParticipant(J, j, R)
+        for r in R
+            QnomO[j][r] = (Qadj[r] * (j.participationrate[r] + O.participationrate[r]) - Qnoms[(participant = j, reservoir = r)] * j.participationrate[r] )/O.participationrate[r]
+        end
+    end
+    return QnomO
+end
 
 
 # --------------------------- Optimization Functions from SDDP -------------------------------------- 
@@ -588,7 +606,7 @@ function Nonanticipatory_Bidding(
     all_res::Array{Reservoir},
     j::Participant,
     PPoints::Array{Float64},
-    Omega,
+    Ω_NA,
     P,
     Qref::Dict{Reservoir, Float64},
     cuts,
@@ -612,7 +630,7 @@ function Nonanticipatory_Bidding(
         @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = r.currentvolume)
         @variable(subproblem, lind[r = R], SDDP.State, initial_value = j.individualreservoir[r])
         @variable(subproblem, u_start[k = K_j], SDDP.State, initial_value = 0, Bin)
-        @variable(subproblem, 0 <= Qnom[r = R] <= max([k.spillreference for k in filter(k -> k.reservoir in find_ds_reservoirs(r), K_j)]...), SDDP.State, initial_value = 0)
+        @variable(subproblem, 0 <= Qnom[r = R], SDDP.State, initial_value = 0)
         @variable(subproblem, BALANCE_INDICATOR[r = R], Bin)
         @variable(subproblem, s[r = R] >= 0)
         @variable(subproblem, a)
@@ -646,7 +664,7 @@ function Nonanticipatory_Bidding(
             @constraint(subproblem, active[t=1:T, k=K_j], w[t,k] <= u[t,k] * k.spillreference * k.equivalent)
             @constraint(subproblem, startup[t=1:T-1, k=K_j], d[t,k] >= u[t+1,k] - u[t,k])
             @constraint(subproblem, production[t=1:T, k=K_j], w[t,k] <= sum(Qreal[t,r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
-            SDDP.parameterize(subproblem, Omega[node], P[node]) do om
+            SDDP.parameterize(subproblem, Ω_NA[node], P[node]) do om
                 # We have to make sure that depending on the market clearing price, the coefficients are set accordingly.
                 # The recourse action only applies to the real delivery, determined by the uncertain price. The other restricitions become inactive, else they make the problem infeasible.
                 # The constraints that are relevant are maintained in Scenario_Index for every current time step.
@@ -663,7 +681,7 @@ function Nonanticipatory_Bidding(
                     end
                 end
                 # Include only active variables in stageobjective
-                @stageobjective(subproblem , sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t]  - S * sum(d[t,k] for k in K_j) for t in 1:T) + a)
+                @stageobjective(subproblem , sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t] - S * sum(d[t,k] for k in K_j) for t in 1:T) + a)
                 # Fix / Deactivate constraints by setting their coefficients to appropriate values or all zero.
                 for t in 1:T
                     for i in 1:I
@@ -822,7 +840,7 @@ function Anticipatory_Bidding(
         controls_to_record = [:l, :x, :Qnom],
         )
         
-        Qnom, BiddingCurves = _collect_solution_Bidding(sol_ant, R, j)
+        Qnom, BiddingCurves = _collect_solution_Bidding(sol_ant, R, j, T)
         return Qnom, BiddingCurves
     end
     
@@ -871,7 +889,7 @@ function ShortTermScheduling(
         @variable(subproblem, lind[r = R], SDDP.State, initial_value = j.individualreservoir[r])
         @variable(subproblem, u_start[k = K_j], SDDP.State, initial_value = 0, Bin)
         # Control Variables
-        @variable(subproblem, 0 <= Qnom[r = R] <= max([k.spillreference for k in K_j]...))
+        @variable(subproblem, 0 <= Qnom[r = R])
         @variable(subproblem, d[t = 1:T, k = K_j], Bin)
         @variable(subproblem, u[t = 1:T, k = K_j], Bin)
         @variable(subproblem, BALANCE_INDICATOR[r = R], Bin)
@@ -902,7 +920,7 @@ function ShortTermScheduling(
             @constraint(subproblem, balance_ind[r = R], lind[r].out == lind[r].in - (Qnom[r] - Qref[r]) + f[r] - s[r]) 
             @constraint(subproblem, nomination[r = R], sum(Qreal[t,r] for t in 1:T) == T * Qnom[r])
         end
-        @constraint(subproblem, nbal1[r = R], BALANCE_INDICATOR[r] => {Qnom[r] <= Qref[r]})
+        @constraint(subproblem, nbal1[r = R], BALANCE_INDICATOR[r] => {Qnom[r] <= Qref[r]}) # DANGEROUS! If Qref is negative, this does not make sense.
         @constraint(subproblem, nbal2[r = R], !BALANCE_INDICATOR[r] => {0 <= lind[r].in})
         @constraint(subproblem, NoSpill[r = R], BALANCE_INDICATOR[r] => {sum(Qnom[r_up] for r_up in find_us_reservoir(r)) <= min([k.spillreference for k in filter(k -> k.reservoir == r, vcat(K_j, K_O))]...)})
         @constraint(subproblem, startup[t = 1:T-1, k = K_j], d[t,k] >= u[t+1,k] - u[t,k])
@@ -994,7 +1012,7 @@ function RealTimeBalancing(
     @objective(model_balancing, Min, sum(mu_up * z_up[t] - mu_down * z_down[t] + sum(S * d[t, k] for k in K_j) for t in 1:T))
     set_silent(model_balancing)
     optimize!(model_balancing)
-    return model_balancing, value.(z_up), value.(z_down)
+    return model_balancing, value.(z_up), value.(z_down), value.(w)
 end
 
 #=
@@ -1269,16 +1287,19 @@ function WaterValueCuts(model_medium::SDDP.PolicyGraph{Int64}, cuts::Dict{Int64,
     gradients = []
     for i in eachindex(cuts)
         for (r,l) in cuts[i] 
-            push!(objvalues, SDDP.evaluate(V, Dict(Symbol("l[$(r)]") => l for (r,l) in cuts[i]))[1])
-            push!(gradients, SDDP.evaluate(V, Dict(Symbol("l[$(r)]") => l for (r,l) in cuts[i]))[2])
+            push!(objvalues, SDDP.evaluate(V, Dict(Symbol("l[$(r.dischargepoint)]") => l for (r,l) in cuts[i]))[1])
+            push!(gradients, SDDP.evaluate(V, Dict(Symbol("l[$(r.dischargepoint)]") => l for (r,l) in cuts[i]))[2])
         end
     end
-    ReservoirWaterValueCuts = Dict(c =>  (e1 = objvalues[i] - min(objvalues...), e2 = gradients[i]) for (i,c) in cuts)
+    ReservoirWaterValueCuts = Dict(c => (e1 = objvalues[i] - min(objvalues...), e2 = gradients[i]) for (i,c) in cuts)
     return ReservoirWaterValueCuts
 end
 
+
 """
+
 ReservoirLevelCuts(R, K, f, week)
+
     Create an Array of reservoir values used in the cut generation of the Water Value Function.
     These Values should correspond to relevant values in the proximity of the current reservoir level. Examples:
     - No Change (Current Reservoir Level)
@@ -1289,13 +1310,11 @@ ReservoirLevelCuts(R, K, f, week)
 function ReservoirLevelCuts(all_res::Vector{Reservoir}, K::Vector{HydropowerPlant}, j::Participant, f::Dict{Reservoir, Vector{Float64}}, week::Int64, Stages::Int64)::Dict{Int64, Dict{Reservoir, Float64}}
     @assert 1 <= week <= 52
     R = collect(filter(r -> j.participationrate[r] > 0, all_res))
-    println(keys(f))
     weeklyInflow = Dict(r => mean(f[r][(week - 1)*7 + 1: week * 7]) for r in R) 
     maxGeneration  = Dict(r => max([k.spillreference for k in filter(k -> k.reservoir in  find_ds_reservoirs(r), K)]...) for r in R)
     reservoircutvalues = Dict(r => min.(max.([r.currentvolume, r.currentvolume - maxGeneration[r] * Stages, r.currentvolume + weeklyInflow[r] * Stages, r.currentvolume + (weeklyInflow[r] - maxGeneration[r]) * Stages], 0), r.maxvolume) for r in R)
     combs = Iterators.product(values(reservoircutvalues)...)
     cuts = Dict(i => Dict(r => v for (r,v) in zip(keys(reservoircutvalues), combo)) for (i, combo) in enumerate(combs))
-    print(values(cuts))
     return cuts
 end
 
@@ -1309,7 +1328,7 @@ WaterValueCutsAllParticipants(J, R, c,  Ω_medium, P_medium, f, stage_count_medi
     -Return as Dictionary of Participants (one for own cuts, one for O's cuts)
 
 """
-function MediumModelsAllParticipants(J::Vector{Participant}, R::Vector{Reservoir}, Ω_medium, P_medium, stage_count_medium, iterations)
+function MediumModelsAllParticipants(J::Vector{Participant}, R::Vector{Reservoir}, Ω_medium, P_medium, stage_count_medium::Int64, iterations::Int64)
     MediumModelDictionary_j = Dict{Participant, SDDP.PolicyGraph}()
     MediumModelDictionary_O = Dict{Participant, SDDP.PolicyGraph}()
     for j in J
@@ -1489,18 +1508,52 @@ function create_Ω_medium(PriceScenarios::Dict{Int64, Vector{Float64}}, InflowSc
 end
 
 """
-    create_Ω_Nonanticipatory(PriceScenariosShort, InflowScenariosShort, R; stage_count)
+    create_Ω_Nonanticipatory(PriceScenariosShort, InflowScenariosShort, R, stage_count, scenario_count_inflows, scenario_count_prices)
 
     Create the uncertainty set for the Nonanticipatory Problems by forming the cartesian product of price and inflow scenarios.
     Return a Dictionary of stagewise uncertainty sets.
 
 """
-function create_Ω_Nonanticipatory(PriceScenariosShort::Dict{Int64, Vector{Vector{Float64}}}, InflowScenariosShort::Dict{Int64, Dict{Reservoir, Vector{Float64}}}, R::Vector{Reservoir}, stage_count)
+function create_Ω_Nonanticipatory(PriceScenariosShort::Dict{Int64, Vector{Vector{Float64}}}, InflowScenariosShort::Dict{Int64, Dict{Reservoir, Vector{Float64}}}, R::Vector{Reservoir}, stage_count::Int64, scenario_count_inflows::Int64, scenario_count_prices::Int64)
     Ω = Dict(i => [(inflow = Dict(r => InflowScenariosShort[i][r][j] for r in R), price = c) for c in PriceScenariosShort[i] for j in eachindex(InflowScenariosShort[i][R[1]])] for i in 1:stage_count)
     P = Dict(s => [1/length(eachindex(Ω[s])) for i in eachindex(Ω[s])] for s in 1:stage_count)
-    return Ω, P
+    Ω_scenario = Dict(scen => Dict(s => [(inflow = Dict(r => Ω[s][scen].inflow[r] for r in R), price = Ω[s][scen].price)] for s in 1:stage_count) for scen in eachindex(Ω[1]))
+    P_scenario = Dict(s => [1/length(eachindex(Ω[s])) for i in eachindex(Ω[s])] for s in 1:stage_count)
+    @assert typeof(Ω) == typeof(Ω_scenario[1])
+    return Ω, P, Ω_scenario, P_scenario
 end
 
+"""
+
+    create_Ω_Anticipatory(PriceScenariosShort, InflowScenariosShort, j, R, stage_count)
+
+    Create Uncertainty Set for the Anticipatory Problem: 
+    Addiitionally to the Nonanticipatory Case, we associate deterministic sets of inflows and prices with other producers' nominations.
+    The Uncertainty set is extended entrywise by the others' nomination. 
+    To avoid combinatorial explosion, we simply consider different scenarios in the first stage.
+
+"""
+function create_Ω_Anticipatory(Ω_NA, Ω_scenario, P_scenario, j::Participant, R::Vector{Reservoir}, PPoints, Qref, cutsOther, WaterCutsOther, stage_count_short::Int64, mu_up, mu_down, T; iteration_count_short = 10)
+    O, _ = OtherParticipant(J, j, R)
+    local_nom = Dict(scenario => Nonanticipatory_Bidding(
+        R,
+        O,
+        PPoints,
+        Ω_scenario[scenario],
+        P_scenario,
+        Qref,
+        cutsOther[j],
+        WaterCutsOther[j],
+        iteration_count_short,
+        mu_up,
+        mu_down,
+        T,
+        stage_count_short; printlevel = 0)[1] for scenario in eachindex(Ω_scenario))
+    
+    Ω_A = Dict(i =>  [(Ω_NA[i][j]..., nomination = local_nom[j]) for j in eachindex(Ω_NA[i])] for i in 1:stage_count_short)
+    P_A = Dict(i => [1/length(Ω_A[i]) for j in eachindex(Ω_A[i])] for i in 1:stage_count_short)
+    return Ω_A, P_A
+end
 
 
 """
@@ -1515,7 +1568,7 @@ function CalculateReferenceFlow(R::Array{Reservoir}, l_traj::Dict{Reservoir, Vec
     weeklyInflow = Dict(r => mean(f[r][(week - 1)*7 + 1: week * 7]) for r in R) 
     Qref = Dict{Reservoir, Float64}(r => 0.0 for r in R)
     for r in R
-        Qref[r] = (r.currentvolume - weeklyTrajectory[r])/7 + weeklyInflow[r]
+        Qref[r] = max((r.currentvolume - weeklyTrajectory[r])/7 + weeklyInflow[r], 0)
     end
     return Qref
 end
@@ -1572,6 +1625,20 @@ function MarketClearing(price::Vector{Float64}, BiddingCurves::Dict{Participant,
         end
     end
     return Obligation
+end
+
+"""
+    Final_Revenue(J, price, Obligations, z_ups, z_downs, mu_up, mu_down, T)
+    
+    Calculate the daily revenues from each participant in the day ahead market and through balancing actions.
+"""
+
+function Final_Revenue(J::Vector{Participant}, price::Vector{Float64}, Obligations::Dict{Participant, Vector{Float64}}, z_ups::Dict{Participant, Vector{Float64}}, z_downs::Dict{Participant, Vector{Float64}}, mu_up::Float64, mu_down::Float64, T::Int64)::Dict{Participant, Float64}
+    revenue = Dict{Participant, Float64}(j => 0.0 for j in J)
+    for j in J
+        revenue[j] = sum(price[t] * Obligations[j][t] - z_ups[j][t] * mu_up + z_downs[j][t] * mu_down for t in 1:T)
+    end
+    return revenue
 end
 
 
