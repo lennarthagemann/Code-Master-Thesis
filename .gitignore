@@ -4,5 +4,7 @@ Julia_Tests/
 model1/
 Results/
 PriceForecasting/
+Archive/
 *.html
 *.log
+*.jls

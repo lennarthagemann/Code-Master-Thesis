@@ -148,7 +148,6 @@ function Base.show(io::IO, p::Participant)
 end
 
 function Base.show(io::IO, Qadj_All::Dict{Reservoir, Float64})
-    println(io, "________________________________")
     for (k,v) in Qadj_All
         println(io, "$(rpad(k.dischargepoint, 8)) | $(rpad(v, 8))")
     end
@@ -633,17 +632,21 @@ function Nonanticipatory_Bidding(
         @variable(subproblem, 0 <= Qnom[r = R], SDDP.State, initial_value = 0)
         @variable(subproblem, BALANCE_INDICATOR[r = R], Bin)
         @variable(subproblem, s[r = R] >= 0)
-        @variable(subproblem, a)
         @constraint(subproblem, increasing[i = 1:I, t=1:T], x[i,t].out <= x[i+1,t].out)
         @constraint(subproblem, balance_ind[r = R], lind[r].out == lind[r].in - (Qnom[r].out - Qref[r])- s[r]) 
         @constraint(subproblem, nbal1[r = R], BALANCE_INDICATOR[r] => {Qnom[r].out <= Qref[r]})
         @constraint(subproblem, NoSpill[k = K_j], BALANCE_INDICATOR[k.reservoir] => {sum(Qnom[r_up].out for r_up in find_us_reservoir(k.reservoir)) <= k.spillreference})
         @constraint(subproblem, nbal2[r = R], !BALANCE_INDICATOR[r] => {0 <= lind[r].in})
-        for (k,c) in cuts
-            @constraint(subproblem, a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
+        if node == Stages
+            @variable(subproblem, a_real)
+            @variable(subproblem, a_ind)
+            for (k,c) in cuts
+                @constraint(subproblem, a_real <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
+                @constraint(subproblem, a_ind <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - lind[r].out) for r in R))
+            end
         end
         if node == 1
-            @stageobjective(subproblem, a)
+            @stageobjective(subproblem, 0)
             @constraint(subproblem, balance_transfer[r = R], l[r].out == l[r].in - Qnom[r].out - s[r]) 
             @constraint(subproblem, start_transfer[k = K_j] , u_start[k].out == u_start[k].in)
         else
@@ -681,7 +684,11 @@ function Nonanticipatory_Bidding(
                     end
                 end
                 # Include only active variables in stageobjective
-                @stageobjective(subproblem , sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t] - S * sum(d[t,k] for k in K_j) for t in 1:T) + a)
+                if node < Stages
+                    @stageobjective(subproblem , sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t] - S * sum(d[t,k] for k in K_j) for t in 1:T))
+                else
+                    @stageobjective(subproblem , sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t] - S * sum(d[t,k] for k in K_j) for t in 1:T) + a_real + a_ind)
+                end
                 # Fix / Deactivate constraints by setting their coefficients to appropriate values or all zero.
                 for t in 1:T
                     for i in 1:I
@@ -761,18 +768,22 @@ function Anticipatory_Bidding(
         @variable(subproblem, Pover[k = K_O] >= 0)
         @variable(subproblem, f[r = R] >= 0)
         @variable(subproblem, s[r = R] >= 0)
-        @variable(subproblem, a)
         
         @constraint(subproblem, increasing[i = 1:I, t=1:T], x[i,t].out <= x[i+1,t].out)
         @constraint(subproblem, balance_ind[r = R], lind[r].out == lind[r].in - T * (Qnom[r].out - Qref[r])- s[r]) 
         @constraint(subproblem, nbal1[r = R], BALANCE_INDICATOR[r] => {Qnom[r].out <= Qref[r]})
         @constraint(subproblem, nbal2[r = R], !BALANCE_INDICATOR[r] => {0 <= lind[r].in})
         @constraint(subproblem, NoSpill[k = K_j], BALANCE_INDICATOR[k.reservoir] => {sum(Qnom[r_up].out for r_up in find_us_reservoir(k.reservoir)) <= k.spillreference})
-        for (k,c) in cuts
-            @constraint(subproblem, a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
+        if node == Stages
+            @variable(subproblem, a_real)
+            @variable(subproblem, a_ind)
+            for (k,c) in cuts
+                @constraint(subproblem, a_real <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
+                @constraint(subproblem, a_ind <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("lind[$(r)]")] *(c[r] - lind[r].out) for r in R))
+            end
         end
         if node == 1
-            @stageobjective(subproblem, -sum(a[r] for r in R))
+            @stageobjective(subproblem, 0)
             @constraint(subproblem, balance_transfer[r = R], l[r].out == l[r].in - T * Qnom[r].out - s[r]) 
         else
             @constraint(subproblem, adjustedflow[r = R], (j.participationrate[r] + O.participationrate[r]) * Qadj[r] - Qnom[r].in * j.participationrate[r] ==  O.participationrate[r])
@@ -805,7 +816,11 @@ function Anticipatory_Bidding(
                     end
                 end
                 # Include only active variables in stageobjective
-                @stageobjective(subproblem ,sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t]  - S * sum(d[t,k] for k in K_j) for t in 1:T) + a)
+                if node < Stages
+                    @stageobjective(subproblem ,sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t]  - S * sum(d[t,k] for k in K_j) for t in 1:T))
+                else
+                    @stageobjective(subproblem ,sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t]  - S * sum(d[t,k] for k in K_j) for t in 1:T) + a_real + a_ind)
+                end
                 # Fix / Deactivate constraints by setting their coefficients to appropriate values or all zero.
                 for t in 1:T
                     for i in 1:I
@@ -896,25 +911,34 @@ function ShortTermScheduling(
         @variable(subproblem, 0 <= w[t = 1:T, k = K_j] <= k.equivalent * k.spillreference)
         @variable(subproblem, 0 <= Qreal[t = 1:T, r = R])
         @variable(subproblem, s[r = R] >= 0)
-        @variable(subproblem, a)
         # Random Variables
         @variable(subproblem, f[r = R] >= 0)
         @constraint(subproblem, startcond[k = K_j], u_start[k].in == u[1,k])
         @constraint(subproblem, endcond[k = K_j], u_start[k].out == u[T,k])
         # Constraints
+        if node == Stages
+            @variable(subproblem, a_real)
+            @variable(subproblem, a_ind)
+            for (k,c) in cuts
+                @constraint(subproblem, a_real <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
+                @constraint(subproblem, a_ind <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - lind[r].out) for r in R))
+            end
+        end
         if node == 1
-            @constraint(subproblem, balance_ind[r = R], lind[r].out == lind[r].in - (Qnom[r] - Qref[r]) - s[r]) 
             @variable(subproblem, z_up[t = 1:T] >= 0)
             @variable(subproblem, z_down[t = 1:T] >= 0)
             @variable(subproblem, Qadj[r = all_res] >= 0)
             @variable(subproblem, Pswap[r = R])
             @variable(subproblem, Pover[k = K_O] >= 0)
             @constraint(subproblem, balance[r = R], l[r].out == l[r].in - Qadj[r] - s[r])
+            @constraint(subproblem, balance_ind[r = R], lind[r].out == lind[r].in - (Qnom[r] - Qref[r]) - s[r]) 
             @constraint(subproblem, obligation[t = 1:T], y[t]  == sum(w[t,k] for k in K_j) + sum(Pswap[r] for r in R) + z_up[t] - z_down[t])
             @constraint(subproblem, powerswap[r = R], Pswap[r] == j.participationrate[r] * (Qnom[r] - Qadj[r]) - sum(Pover[k] for k in K_O))
             @constraint(subproblem, overnomination[k = K_O], Pover[k] >= k.equivalent * (Qadj[k.reservoir] - k.spillreference))
             @constraint(subproblem, adjustedflow[r = R], Qadj[r] == (Qnom[r] * j.participationrate[r] + QnomO[r] * O.participationrate[r]) / (j.participationrate[r] + O.participationrate[r]))
             @constraint(subproblem, nomination[r = R], sum(Qreal[t,r] for t in 1:T) == T * Qadj[r])
+            # Fixed Price and delivery in first stage, only think about minimum balancing and productions costs
+            @stageobjective(subproblem, sum(price[t] * y[t] - mu_up * z_up[t] + mu_down * z_down[t] - S * sum(d[t,k] for k in K_j) for t in 1:T))
         else
             @constraint(subproblem, balance[r = R], l[r].out == l[r].in - Qnom[r] + f[r] - s[r])
             @constraint(subproblem, balance_ind[r = R], lind[r].out == lind[r].in - (Qnom[r] - Qref[r]) + f[r] - s[r]) 
@@ -926,9 +950,6 @@ function ShortTermScheduling(
         @constraint(subproblem, startup[t = 1:T-1, k = K_j], d[t,k] >= u[t+1,k] - u[t,k])
         @constraint(subproblem, active[t = 1:T, k = K_j], w[t,k] <= u[t,k] * k.spillreference * k.equivalent)
         @constraint(subproblem, production[t = 1:T, k = K_j], w[t,k] <= sum(Qreal[t,r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
-        for (k,c) in cuts
-            @constraint(subproblem, a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
-        end
         if node > 1
             SDDP.parameterize(subproblem, Omega[node], P[node]) do om
                 # We have to make sure that depending on the market clearing price, the coefficients are set accordingly.
@@ -937,12 +958,14 @@ function ShortTermScheduling(
                 for r in R
                     JuMP.fix(f[r], om.inflow[r], force=true)
                 end
-                # Include only active variables in stageobjective
-                @stageobjective(subproblem, sum(om.price[t] * sum(w[t,k] for k in K_j) - S * sum(d[t,k] for k in K_j) for t in 1:T) + a)
+                if node < Stages
+                    # Include only active variables in stageobjective
+                    @stageobjective(subproblem, sum(om.price[t] * sum(w[t,k] for k in K_j) - S * sum(d[t,k] for k in K_j) for t in 1:T))
+                else
+                    # additionally include Water Value Function
+                    @stageobjective(subproblem, sum(om.price[t] * sum(w[t,k] for k in K_j) - S * sum(d[t,k] for k in K_j) for t in 1:T) + a_real + a_ind)
+                end
             end
-        else
-            # Fixed Price and delivery in first stage, only think about minimum water value loss and productions costs
-            @stageobjective(subproblem, sum(price[t] * y[t] - mu_up * z_up[t] + mu_down * z_down[t] - S * sum(d[t,k] for k in K_j) for t in 1:T) + a)
         end
         return
     end
@@ -1046,6 +1069,12 @@ function SingleOwnerBdding(
         @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= sum(k.equivalent * k.spillreference for k in K), SDDP.State, initial_value = 0)
         # Transition Function
         @constraint(subproblem, increasing[i = 1:I, t=1:T], x[i,t].out <= x[i+1,t].out)
+        if node == Stages
+            @variable(subproblem, a)
+            for (k,c) in cuts
+                @constraint(subproblem, a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
+            end
+        end
         if node == 1
             # We only concern ourselves with bidding in the first stage.
             @stageobjective(subproblem, 0)
@@ -1054,7 +1083,6 @@ function SingleOwnerBdding(
         else
             # Some Constraints and variables such as production specific components only become relevant in stage >= 2
             @variable(subproblem, y[t = 1:T] >= 0)
-            @variable(subproblem, a)
             @variable(subproblem, 0 <= Qreal[t = 1:T, r = R])
             @variable(subproblem, 0 <= w[t = 1:T, k = K] <= k.equivalent * k.spillreference)
             @variable(subproblem, u[t = 1:T, k = K], Bin)
@@ -1064,7 +1092,6 @@ function SingleOwnerBdding(
             @variable(subproblem, z_down[t = 1:T] >= 0)
             # Random Variables
             @variable(subproblem, f[r = R])
-            @constraint(subproblem, watervalue[c = values(cuts)], a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
             @constraint(subproblem, clearing[t=1:T], y[t] == sum(1* x[i,t].in +  1* x[i+1,t].in for i in 1:I-1))
             @constraint(subproblem, balance[r = R], l[r].out == l[r].in - sum(Qreal[t,r] for t in 1:T) + T * f[r] - s[r])
             @constraint(subproblem, planttrans1[k = K], ustart[k].in == u[1,k])
@@ -1089,8 +1116,12 @@ function SingleOwnerBdding(
                     end
                 end
                 # Parameterize objective through uncertain price
-                @stageobjective(subproblem, sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t]  - sum(S * d[t,k] for k in K) + a for t in 1:T))
-                # Fix / Deactivate constraints by setting their coefficients to appropriate values or all zero.
+                if node < Stages
+                    @stageobjective(subproblem, sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t]  - sum(S * d[t,k] for k in K) for t in 1:T))
+                else
+                    @stageobjective(subproblem, sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t]  - sum(S * d[t,k] for k in K) + a for t in 1:T))
+                end
+                    # Fix / Deactivate constraints by setting their coefficients to appropriate values or all zero.
                 for t in 1:T
                     for i in 1:I
                         if (i == I_t[t])
@@ -1145,7 +1176,6 @@ function SingleOwnerScheduling(R::Array{Reservoir},
         @variable(subproblem, 0 <= u[t = 1:T, k = K], Bin)
         @variable(subproblem, 0 <= d[t = 1:T, k = K], Bin)
         @variable(subproblem, s[r = R] >= 0)
-        @variable(subproblem, a[r = R])
         # Random Variables
         @variable(subproblem, f[r = R])
     
@@ -1154,6 +1184,12 @@ function SingleOwnerScheduling(R::Array{Reservoir},
         @constraint(subproblem, planttrans1[k = K], ustart[k].in == u[1,k])
         @constraint(subproblem, planttrans2[k = K], ustart[k].out == u[T,k])
         # Constraints
+        if node == Stages
+            @variable(subproblem, a)
+            for (k,c) in cuts
+                @constraint(subproblem, a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
+            end
+        end
         if node == 1
             @variable(subproblem, z_up[t = 1:T] >= 0)
             @variable(subproblem, z_down[t = 1:T] >= 0)
@@ -1162,7 +1198,6 @@ function SingleOwnerScheduling(R::Array{Reservoir},
         @constraint(subproblem, startup[t = 1:T-1, k = K], d[t,k] >= u[t+1,k] - u[t,k])
         @constraint(subproblem, activeplant[t = 1:T, k = K], w[t,k] <= u[t,k] * k.equivalent * k.spillreference)
         @constraint(subproblem, production[t = 1:T, k = K], w[t,k] <= sum(Q[t, r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
-        @constraint(subproblem, watervalue[c = values(cuts)], a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
         # Parameterize Uncertainty
         SDDP.parameterize(subproblem, Omega, P) do om
             if node == 1
@@ -1188,8 +1223,8 @@ function SingleOwnerScheduling(R::Array{Reservoir},
 
     rule_single_short = SDDP.DecisionRule(model_single_short; node = 1)
     sol_single_short = SDDP.evaluate(rule_single_short; incoming_state = Dict(Symbol("l[$(r.dischargepoint)]") => r.currentvolume for r in R),
-    controls_to_record = [:Q, :u, :d],)
-    return
+    controls_to_record = [:Q, :u, :d])
+    return sol_single_short
 end
 
 
@@ -1220,7 +1255,7 @@ function MediumTermModel(
     R = collect(filter(r -> j.participationrate[r] > 0, all_res))
     function subproblem_builder_medium(subproblem::Model, node::Int64)
         # State Variables
-        @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, initial_value = r.currentvolume/2, SDDP.State)
+        @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, initial_value = r.currentvolume, SDDP.State)
         # Control Variables
         @variable(subproblem, Q[r = R] >= 0)
         @variable(subproblem, s[r = R] >= 0)
@@ -1228,7 +1263,7 @@ function MediumTermModel(
         # Random Variables
         @variable(subproblem, f[r = R])
         # Transition Function 
-        @constraint(subproblem, balance[r = R],  l[r].out == l[r].in -  Q[r] + f[r] - s[r])
+        @constraint(subproblem, balance[r = R],  l[r].out == l[r].in - 7 *(Q[r] - f[r]) - s[r])
         # Constraints
         # @constraint(subproblem, balance_limits[r = R], lmin[node] <=  l[r].out <= lmax[node])
         @constraint(subproblem, production[k = K], w[k] <= sum(Q[r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
@@ -1238,21 +1273,21 @@ function MediumTermModel(
             for r in R
                 JuMP.fix(f[r], om.inflow[r])
             end
-            @stageobjective(subproblem, om.price * sum(w[k] for k in K))
+            @stageobjective(subproblem, om.price * 7 * sum(w[k] for k in K))
         end
     end
 
     graph = SDDP.LinearGraph(Stages)
     # We can choose to solve an infinite horizon model, so that the Reservoir is not always empty at the end of the horizon
     if loop
-        SDDP.add_edge(graph, Stages => 1, 0.8)
+        SDDP.add_edge(graph, Stages => 1, 0.5)
     end
     model_medium = SDDP.PolicyGraph(
-    subproblem_builder_medium,
-    graph;
-    sense = :Max,
-    upper_bound = sum(r.currentvolume * 300 * sum(k.equivalent for k in filter(k -> k.reservoir in find_ds_reservoirs(r), K)) * 5 for r in R),
-    optimizer = CPLEX.Optimizer)
+        subproblem_builder_medium,
+        graph;
+        sense = :Max,
+        upper_bound = Stages * sum(r.maxvolume * 500 * sum(k.equivalent for k in filter(k -> k.reservoir in find_ds_reservoirs(r), K)) * 5 for r in R),
+        optimizer = CPLEX.Optimizer)
 
     SDDP.train(
         model_medium;
@@ -1280,21 +1315,19 @@ We already have the slope (gradient, so we only need to find out the y-coordinat
 Return: Array of Coefficients for Water value Function
 
 """
-function WaterValueCuts(model_medium::SDDP.PolicyGraph{Int64}, cuts::Dict{Int64, Dict{Reservoir, Float64}}, week::Int64)
+function WaterValueCuts(all_res::Vector{Reservoir}, j::Participant, model_medium::SDDP.PolicyGraph{Int64}, cuts::Array{Dict{Reservoir, Float64}}, week::Int64)
     @assert 1 <= week <= 52
+    R = collect(filter(r -> j.participationrate[r] > 0, all_res))
     V = SDDP.ValueFunction(model_medium; node = week)
     objvalues = []
     gradients = []
-    for i in eachindex(cuts)
-        for (r,l) in cuts[i] 
-            push!(objvalues, SDDP.evaluate(V, Dict(Symbol("l[$(r.dischargepoint)]") => l for (r,l) in cuts[i]))[1])
-            push!(gradients, SDDP.evaluate(V, Dict(Symbol("l[$(r.dischargepoint)]") => l for (r,l) in cuts[i]))[2])
-        end
+    for c in cuts
+        push!(objvalues, SDDP.evaluate(V, Dict(Symbol("l[$(r.dischargepoint)]") => c[r] for r in R))[1])
+        push!(gradients, SDDP.evaluate(V, Dict(Symbol("l[$(r.dischargepoint)]") => c[r] for r in R))[2])
     end
-    ReservoirWaterValueCuts = Dict(c => (e1 = objvalues[i] - min(objvalues...), e2 = gradients[i]) for (i,c) in cuts)
+    ReservoirWaterValueCuts = Dict(c => (e1 = objvalues[i], e2 = gradients[i]) for (i,c) in enumerate(cuts))
     return ReservoirWaterValueCuts
 end
-
 
 """
 
@@ -1307,19 +1340,19 @@ ReservoirLevelCuts(R, K, f, week)
     - No/High production
     These all give us cuts to estimate an area which is relevant to the next stages optimization.
 """
-function ReservoirLevelCuts(all_res::Vector{Reservoir}, K::Vector{HydropowerPlant}, j::Participant, f::Dict{Reservoir, Vector{Float64}}, week::Int64, Stages::Int64)::Dict{Int64, Dict{Reservoir, Float64}}
+function ReservoirLevelCuts(all_res::Vector{Reservoir}, K::Vector{HydropowerPlant}, j::Participant, f::Dict{Reservoir, Vector{Float64}}, week::Int64, Stages::Int64)::Vector{Dict{Reservoir, Float64}}
     @assert 1 <= week <= 52
     R = collect(filter(r -> j.participationrate[r] > 0, all_res))
-    weeklyInflow = Dict(r => mean(f[r][(week - 1)*7 + 1: week * 7]) for r in R) 
+    weeklyInflow = Dict(r => mean(f[r][(week - 1) * 7 + 1: week * 7]) for r in R) 
     maxGeneration  = Dict(r => max([k.spillreference for k in filter(k -> k.reservoir in  find_ds_reservoirs(r), K)]...) for r in R)
-    reservoircutvalues = Dict(r => min.(max.([r.currentvolume, r.currentvolume - maxGeneration[r] * Stages, r.currentvolume + weeklyInflow[r] * Stages, r.currentvolume + (weeklyInflow[r] - maxGeneration[r]) * Stages], 0), r.maxvolume) for r in R)
+    reservoircutvalues = Dict(r => min.(max.([r.currentvolume, r.currentvolume - maxGeneration[r] * Stages, r.currentvolume + weeklyInflow[r] * Stages, r.currentvolume + (weeklyInflow[r] - maxGeneration[r]) * Stages, 0], 0), r.maxvolume) for r in R)
     combs = Iterators.product(values(reservoircutvalues)...)
-    cuts = Dict(i => Dict(r => v for (r,v) in zip(keys(reservoircutvalues), combo)) for (i, combo) in enumerate(combs))
+    cuts = vec([Dict(r => v for (r,v) in zip(keys(reservoircutvalues), combo)) for combo in combs])
     return cuts
 end
 
 """
-WaterValueCutsAllParticipants(J, R, c,  Ω_medium, P_medium, f, stage_count_medium, iterations, week)
+MediumModelsAllParticipants(J, R, c,  Ω_medium, P_medium, f, stage_count_medium, iterations, week)
 
     For all Participants involved in the Water Regulation Procedure, generate the Water Values Cuts.
     For the Anticipatory Problem, we additionally need the Water Value Cuts of the Other Participant (from perspecitve of each producer)
@@ -1328,7 +1361,7 @@ WaterValueCutsAllParticipants(J, R, c,  Ω_medium, P_medium, f, stage_count_medi
     -Return as Dictionary of Participants (one for own cuts, one for O's cuts)
 
 """
-function MediumModelsAllParticipants(J::Vector{Participant}, R::Vector{Reservoir}, Ω_medium, P_medium, stage_count_medium::Int64, iterations::Int64)
+function MediumModelsAllParticipants(J::Vector{Participant}, R::Vector{Reservoir}, Ω_medium, P_medium, stage_count_medium::Int64, iterations::Int64; print_level = 0)
     MediumModelDictionary_j = Dict{Participant, SDDP.PolicyGraph}()
     MediumModelDictionary_O = Dict{Participant, SDDP.PolicyGraph}()
     for j in J
@@ -1336,8 +1369,8 @@ function MediumModelsAllParticipants(J::Vector{Participant}, R::Vector{Reservoir
         O_local, K_O_local = OtherParticipant(J, j, R)
         R_j = collect(filter(r -> j.participationrate[r] > 0.0, R))
         R_O = collect(filter(r -> O_local.participationrate[r] > 0.0, R))
-        model_medium_j, _= MediumTermModel(R_j, K_local, j, Ω_medium, P_medium, stage_count_medium, iterations; printlevel = 0)
-        model_medium_O, _ = MediumTermModel(R_O, K_O_local, O_local, Ω_medium, P_medium, stage_count_medium, iterations; printlevel = 0)
+        model_medium_j, _= MediumTermModel(R_j, K_local, j, Ω_medium, P_medium, stage_count_medium, iterations; printlevel = print_level)
+        model_medium_O, _ = MediumTermModel(R_O, K_O_local, O_local, Ω_medium, P_medium, stage_count_medium, iterations; printlevel = print_level)
         MediumModelDictionary_j[j] = model_medium_j
         MediumModelDictionary_O[j] = model_medium_O
     end
@@ -1472,7 +1505,7 @@ end
     within technical limits of NordPool.
     The middle Price Points are chosen based on density of prices (Quantiles)
 """
-function Create_Price_Points(price_data::DataFrame, n::Int64; quantile_bounds = 0.1)::Vector{Float64}
+function Create_Price_Points(price_data::DataFrame, n::Int64; quantile_bounds = 0.05)::Vector{Float64}
     return [0, quantile(price_data.Average, range(quantile_bounds, 1 - quantile_bounds, length = n))..., 440]
 end
 
@@ -1533,7 +1566,7 @@ end
     To avoid combinatorial explosion, we simply consider different scenarios in the first stage.
 
 """
-function create_Ω_Anticipatory(Ω_NA, Ω_scenario, P_scenario, j::Participant, R::Vector{Reservoir}, PPoints, Qref, cutsOther, WaterCutsOther, stage_count_short::Int64, mu_up, mu_down, T; iteration_count_short = 10)
+function create_Ω_Anticipatory(Ω_NA, Ω_scenario, P_scenario,J::Vector{Participant}, j::Participant, R::Vector{Reservoir}, PPoints, Qref, cutsOther, WaterCutsOther, stage_count_short::Int64, mu_up, mu_down, T; iteration_count_short = 10)
     O, _ = OtherParticipant(J, j, R)
     local_nom = Dict(scenario => Nonanticipatory_Bidding(
         R,
