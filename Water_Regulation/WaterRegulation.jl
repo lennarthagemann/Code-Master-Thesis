@@ -624,6 +624,7 @@ function Nonanticipatory_Bidding(
     K_j = j.plants
     R = collect(filter(r -> j.participationrate[r] > 0.0, all_res))
     I = length(PPoints) - 1
+
     function subproblem_builder_nonanticipatory(subproblem::Model, node::Int64)
         @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= sum(k.equivalent * k.spillreference for k in K_j), SDDP.State, initial_value=0)
         @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = r.currentvolume)
@@ -640,7 +641,9 @@ function Nonanticipatory_Bidding(
         if node == Stages
             @variable(subproblem, a_real)
             @variable(subproblem, a_ind)
-            for (k,c) in cuts
+            println(cuts[1])
+            println(WaterCuts[cuts[1]])
+            for c in cuts
                 @constraint(subproblem, a_real <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
                 @constraint(subproblem, a_ind <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - lind[r].out) for r in R))
             end
@@ -728,33 +731,36 @@ function Nonanticipatory_Bidding(
 end
         
 function Anticipatory_Bidding(
-    R::Array{Reservoir},
+    all_res::Array{Reservoir},
     j::Participant,
+    J::Vector{Participant},
     PPoints::Array{Float64},
     Omega,
     P,
+    Qref::Dict{Reservoir, Float64},
     cuts,
     WaterCuts,
-    iteration_count;
-    mu_up = 1.0,
-    mu_down = 0.1,
-    riskmeasure = SDDP.Expectation(),
+    iteration_count,
+    mu_up::Float64,
+    mu_down::Float64,
+    T::Int64,
+    Stages::Int64;
     printlevel = 1,
     stopping_rule = SDDP.BoundStalling(10, 1e-4),
-    T = 24,
-    Stages = stages,
     optimizer = CPLEX.Optimizer,
     DualityHandler = SDDP.ContinuousConicDuality())
             
     K_j = j.plants
-    O, K_O = OtherParticipant(J, j, R)
-    
+    O, K_O = OtherParticipant(J, j, all_res)
+    R = collect(filter(r -> j.participationrate[r] > 0, all_res))
+    I = length(PPoints) - 1
+
     function subproblem_builder_anticipatory(subproblem::Model, node::Int64)
         @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= sum(k.equivalent * k.spillreference for k in K_j), SDDP.State, initial_value=0)
-        @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = r.currentvolume)
+        @variable(subproblem, 0 <= l[r = all_res] <= r.maxvolume, SDDP.State, initial_value = r.currentvolume)
         @variable(subproblem, lind[r = R], SDDP.State, initial_value = r.currentvolume)
         @variable(subproblem, u_start[k = K_j], SDDP.State, initial_value = 0, Bin)
-        @variable(subproblem, 0 <= Qnom[r = R] <= max([k.spillreference for k in filter(k -> k.reservoir in find_ds_reservoirs(r), K)]...), SDDP.State, initial_value = 0)
+        @variable(subproblem, 0 <= Qnom[r = R] <= max([k.spillreference for k in filter(k -> k.reservoir in find_ds_reservoirs(r), vcat(K_j,))]...), SDDP.State, initial_value = 0)
         @variable(subproblem, y[t=1:T] >= 0)
         @variable(subproblem, d[t=1:T, k = K_j], Bin)
         @variable(subproblem, u[t=1:T, k = K_j], Bin)
@@ -762,8 +768,8 @@ function Anticipatory_Bidding(
         @variable(subproblem, 0 <= w[t=1:T, k = K_j] <= k.equivalent * k.spillreference)
         @variable(subproblem, z_up[t=1:T] >= 0)
         @variable(subproblem, z_down[t=1:T] >= 0)
-        @variable(subproblem, 0 <= Qreal[t=1:T, r = R])
-        @variable(subproblem, 0 <= Qadj[r = R])
+        @variable(subproblem, 0 <= Qreal[t=1:T, r = all_res])
+        @variable(subproblem, 0 <= Qadj[r = all_res])
         @variable(subproblem, Pswap[r = R])
         @variable(subproblem, Pover[k = K_O] >= 0)
         @variable(subproblem, f[r = R] >= 0)
@@ -777,7 +783,7 @@ function Anticipatory_Bidding(
         if node == Stages
             @variable(subproblem, a_real)
             @variable(subproblem, a_ind)
-            for (k,c) in cuts
+            for c in cuts
                 @constraint(subproblem, a_real <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
                 @constraint(subproblem, a_ind <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("lind[$(r)]")] *(c[r] - lind[r].out) for r in R))
             end
@@ -805,6 +811,9 @@ function Anticipatory_Bidding(
                 for r in R
                     JuMP.fix(f[r], om.inflow, force=true)
                     JuMP.set_normalized_rhs(adjustedflow[r], O.participationrate[r] * om.nomination[r])
+                end
+                for r in filter(r -> r in all_res && !(r in R), all_res)
+                    @constraint(subproblem, Qadj[r] == om.nomination[r])
                 end
                 # Define Set of active variables for each hour
                 I_t = Dict(t => 0 for t in 1:T)
@@ -892,12 +901,9 @@ function ShortTermScheduling(
     optimizer = CPLEX.Optimizer)
     
     R = collect(filter(r -> j.participationrate[r] > 0.0, all_res))
-    println(R)
 
     K_j = j.plants
     O, K_O = OtherParticipant(J, j, all_res)
-    println(j, R)
-    println("Plants: ", K_j, "\n", K_O)
     function subproblem_builder_short(subproblem::Model, node::Int64)
         # State Variables
         @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = r.currentvolume)
@@ -1325,7 +1331,7 @@ function WaterValueCuts(all_res::Vector{Reservoir}, j::Participant, model_medium
         push!(objvalues, SDDP.evaluate(V, Dict(Symbol("l[$(r.dischargepoint)]") => c[r] for r in R))[1])
         push!(gradients, SDDP.evaluate(V, Dict(Symbol("l[$(r.dischargepoint)]") => c[r] for r in R))[2])
     end
-    ReservoirWaterValueCuts = Dict(c => (e1 = objvalues[i], e2 = gradients[i]) for (i,c) in enumerate(cuts))
+    ReservoirWaterValueCuts = Dict(c => (e1 = objvalues[i] - min(objvalues...), e2 = gradients[i]) for (i,c) in enumerate(cuts))
     return ReservoirWaterValueCuts
 end
 
@@ -1369,7 +1375,7 @@ function MediumModelsAllParticipants(J::Vector{Participant}, R::Vector{Reservoir
         O_local, K_O_local = OtherParticipant(J, j, R)
         R_j = collect(filter(r -> j.participationrate[r] > 0.0, R))
         R_O = collect(filter(r -> O_local.participationrate[r] > 0.0, R))
-        model_medium_j, _= MediumTermModel(R_j, K_local, j, Ω_medium, P_medium, stage_count_medium, iterations; printlevel = print_level)
+        model_medium_j, _ = MediumTermModel(R_j, K_local, j, Ω_medium, P_medium, stage_count_medium, iterations; printlevel = print_level)
         model_medium_O, _ = MediumTermModel(R_O, K_O_local, O_local, Ω_medium, P_medium, stage_count_medium, iterations; printlevel = print_level)
         MediumModelDictionary_j[j] = model_medium_j
         MediumModelDictionary_O[j] = model_medium_O
@@ -1510,21 +1516,16 @@ function Create_Price_Points(price_data::DataFrame, n::Int64; quantile_bounds = 
 end
 
 """
-    BalanceParameters(PriceScenariosHourly)
+    BalanceParameters(price_data)
 
-    From generated Price Scenarios, determine up and down balancing penalty values.
-    These are chosen as the min/max value of observed prices in the scenarios, so that it is never more profitable
-    to use the balancing market in comparison to the day ahead market.
+    From historical Day Ahead Market Data, generate Balance Parameters.
+    They are chosen as minimum and maximum average Day Ahead Market Values.
+    The Reason for choosing these bound is that it should be discouraged to excessively use the balancing market.
 """
-function BalanceParameters(PriceScenariosHourly::Dict{Int64, Vector{Vector{Float64}}})::Tuple{Float64, Float64}
-    mu_up = -Inf
-    mu_down = Inf
-    for (k,values) in values(PriceScenariosHourly)
-        for v in values
-            mu_up = max(maximum(v), mu_up)
-            mu_down = min(minimum(v), mu_down)
-        end
-    end
+function BalanceParameters(price_data::DataFrame)::Tuple{Float64, Float64}
+    q =  quantile(price_data.Average, range(0, 1, length = 2))
+    mu_up = max(q...)
+    mu_down = min(q...)
     return mu_up, mu_down
 end
 
@@ -1547,9 +1548,14 @@ end
     Return a Dictionary of stagewise uncertainty sets.
 
 """
-function create_Ω_Nonanticipatory(PriceScenariosShort::Dict{Int64, Vector{Vector{Float64}}}, InflowScenariosShort::Dict{Int64, Dict{Reservoir, Vector{Float64}}}, R::Vector{Reservoir}, stage_count::Int64, scenario_count_inflows::Int64, scenario_count_prices::Int64)
+function create_Ω_Nonanticipatory(price_data::DataFrame, inflow_data::DataFrame, scenario_count_prices::Int64, scenario_count_inflows::Int64, currentweek::Int64, R::Vector{Reservoir}, stage_count::Int64, ColumnReservoir::Dict{Reservoir, String})
+    # Generate Price and Inflow Scenarios
+    PriceScenariosShort = Price_Scenarios_Short(price_data, scenario_count_prices, stage_count; quantile_bounds = 0.1)
+    InflowScenariosShort = Inflow_Scenarios_Short(inflow_data, currentweek, ColumnReservoir, R, stage_count, scenario_count_inflows)
+    # Combine Scenarios to Uncertainty Set
     Ω = Dict(i => [(inflow = Dict(r => InflowScenariosShort[i][r][j] for r in R), price = c) for c in PriceScenariosShort[i] for j in eachindex(InflowScenariosShort[i][R[1]])] for i in 1:stage_count)
     P = Dict(s => [1/length(eachindex(Ω[s])) for i in eachindex(Ω[s])] for s in 1:stage_count)
+    # Combine Determinstic Scenario sets for each generated scenario
     Ω_scenario = Dict(scen => Dict(s => [(inflow = Dict(r => Ω[s][scen].inflow[r] for r in R), price = Ω[s][scen].price)] for s in 1:stage_count) for scen in eachindex(Ω[1]))
     P_scenario = Dict(s => [1/length(eachindex(Ω[s])) for i in eachindex(Ω[s])] for s in 1:stage_count)
     @assert typeof(Ω) == typeof(Ω_scenario[1])
@@ -1566,7 +1572,7 @@ end
     To avoid combinatorial explosion, we simply consider different scenarios in the first stage.
 
 """
-function create_Ω_Anticipatory(Ω_NA, Ω_scenario, P_scenario,J::Vector{Participant}, j::Participant, R::Vector{Reservoir}, PPoints, Qref, cutsOther, WaterCutsOther, stage_count_short::Int64, mu_up, mu_down, T; iteration_count_short = 10)
+function create_Ω_Anticipatory(Ω_NA, Ω_scenario, P_scenario, J::Vector{Participant}, j::Participant, R::Vector{Reservoir}, PPoints, Qref, cutsOther, WaterCutsOther, stage_count_short::Int64, mu_up, mu_down, T; iteration_count_short = 10)
     O, _ = OtherParticipant(J, j, R)
     local_nom = Dict(scenario => Nonanticipatory_Bidding(
         R,
