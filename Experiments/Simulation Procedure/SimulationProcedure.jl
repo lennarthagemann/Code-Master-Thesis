@@ -45,19 +45,26 @@ R, K, J = read_data(filepath_Ljungan)
 const ColumnReservoir = Dict{Reservoir, String}(R[1] => "Flasjon Inflow", R[2] => "Holmsjon Inflow")
 const scenario_count_inflows = 1
 const scenario_count_prices = 3
+const scenario_count_prices_medium = 3
+const scenario_count_inflows_weekly = 3
 const stage_count_short = 3
 const stage_count_bidding = 2
+const stage_count_medium = 52
 const price_point_count = 5
 const T = 24
 const currentweek = 2
 const iteration_count_short = 50
 const iteration_count_Bidding = 100
+const iteration_count_medium = 1000
 
 price_data = prepare_pricedata(filepath_prices)
 inflow_data = prepare_inflowdata(filepath_inflows)
 NameToParticipant = Dict{String, Participant}(j.name => j for j in J)
-MediumModelDictionary_j_loaded = ReadMediumModel(savepath_watervalue * "\\Participant.jls", NameToParticipant);
-MediumModelDictionary_O_loaded = ReadMediumModel(savepath_watervalue * "\\OtherParticipant.jls", NameToParticipant);
+
+PriceScenariosMedium = Price_Scenarios_Medium(price_data, scenario_count_prices_medium)
+InflowScenariosMedium = Inflow_Scenarios_Medium(inflow_data, ColumnReservoir, scenario_count_inflows_weekly, R)
+Ω_medium, P_medium =  create_Ω_medium(PriceScenariosMedium, InflowScenariosMedium, R);
+MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded = ReadMediumModel(savepath_watervalue, J, R, Ω_medium, P_medium, stage_count_medium, iteration_count_medium)
 
 Strategy = Dict(j => "Anticipatory" for j in J)
 

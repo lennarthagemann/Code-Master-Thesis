@@ -580,17 +580,26 @@ end
 """
 ReadMediumModel(savepath::String, NameToParticipant::Dict{String, Participant})
 
-read in serialized Dictionary of Medium Models for each participant at savepath.
-    NameToParticipant is used to create link between (immutable) string and old Participant Object.
+read in cuts from saved json for each participant.
+Set up a new Policy graph and add cuts to untrained model
+NameToParticipant is used to create link between (immutable) string and old Participant Object.
 """
 
-function ReadMediumModel(savepath::String, NameToParticipant::Dict{String, Participant})
-    serialized_data = open(deserialize, savepath, "r")
-    dict = Dict{Participant, SDDP.PolicyGraph{Int64}}()
-    for (uuid, (original_key, value)) in serialized_data
-        dict[NameToParticipant[original_key]] = value
+function ReadMediumModel(savepath::String, J::Vector{Participant}, R::Vector{Reservoir}, Ω_medium, P_medium, stage_count_medium, iterations)
+    dict_j = Dict{Participant, SDDP.PolicyGraph{Int64}}()
+    dict_O = Dict{Participant, SDDP.PolicyGraph{Int64}}()
+    for j in J
+        O_local, K_O_local = OtherParticipant(J, j, R)
+        R_j = collect(filter(r -> j.participationrate[r] > 0.0, R))
+        R_O = collect(filter(r -> O_local.participationrate[r] > 0.0, R))
+        model_medium_j, _ = MediumTermModel(R_j, j.plants, j, Ω_medium, P_medium, stage_count_medium, iterations; optimize_model = false)
+        SDDP.read_cuts_from_file(model_medium_j, savepath * "\\Participant\\$(j.name).json")
+        model_medium_O, _ = MediumTermModel(R_O, K_O_local, O_local, Ω_medium, P_medium, stage_count_medium, iterations; optimize_model = false)
+        SDDP.read_cuts_from_file(model_medium_O, savepath * "\\OtherParticipant\\$(j.name).json")
+        dict_j[j] = model_medium_j
+        dict_O[j] = model_medium_O
     end
-    return dict
+    return dict_j, dict_O
 end
 
 
@@ -735,7 +744,7 @@ function Anticipatory_Bidding(
     j::Participant,
     J::Vector{Participant},
     PPoints::Array{Float64},
-    Omega,
+    Ω_A,
     P,
     Qref::Dict{Reservoir, Float64},
     cuts,
@@ -745,6 +754,7 @@ function Anticipatory_Bidding(
     mu_down::Float64,
     T::Int64,
     Stages::Int64;
+    S = 200,
     printlevel = 1,
     stopping_rule = SDDP.BoundStalling(10, 1e-4),
     optimizer = CPLEX.Optimizer,
@@ -753,6 +763,7 @@ function Anticipatory_Bidding(
     K_j = j.plants
     O, K_O = OtherParticipant(J, j, all_res)
     R = collect(filter(r -> j.participationrate[r] > 0, all_res))
+    R_O = collect(filter(r -> !(r in R), all_res))
     I = length(PPoints) - 1
 
     function subproblem_builder_anticipatory(subproblem::Model, node::Int64)
@@ -768,7 +779,7 @@ function Anticipatory_Bidding(
         @variable(subproblem, 0 <= w[t=1:T, k = K_j] <= k.equivalent * k.spillreference)
         @variable(subproblem, z_up[t=1:T] >= 0)
         @variable(subproblem, z_down[t=1:T] >= 0)
-        @variable(subproblem, 0 <= Qreal[t=1:T, r = all_res])
+        @variable(subproblem, 0 <= Qreal[t=1:T, r = R])
         @variable(subproblem, 0 <= Qadj[r = all_res])
         @variable(subproblem, Pswap[r = R])
         @variable(subproblem, Pover[k = K_O] >= 0)
@@ -785,7 +796,7 @@ function Anticipatory_Bidding(
             @variable(subproblem, a_ind)
             for c in cuts
                 @constraint(subproblem, a_real <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
-                @constraint(subproblem, a_ind <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("lind[$(r)]")] *(c[r] - lind[r].out) for r in R))
+                @constraint(subproblem, a_ind <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - lind[r].out) for r in R))
             end
         end
         if node == 1
@@ -793,8 +804,9 @@ function Anticipatory_Bidding(
             @constraint(subproblem, balance_transfer[r = R], l[r].out == l[r].in - T * Qnom[r].out - s[r]) 
         else
             @constraint(subproblem, adjustedflow[r = R], (j.participationrate[r] + O.participationrate[r]) * Qadj[r] - Qnom[r].in * j.participationrate[r] ==  O.participationrate[r])
+            @constraint(subproblem, adjustedflowOther[r = R_O], Qadj[r] == 0.0)
             @constraint(subproblem, powerswap[r = R], Pswap[r] == j.participationrate[r] * (Qnom[r].in - Qadj[r]) - sum(Pover[k] for k in K_O))
-            @constraint(subproblem, overnomination[k = K_O], Pover[k] >= k.equivalent * (Qadj[k.reservoir] - k.spillreference))
+            @constraint(subproblem, overnomination[k = K_O], Pover[k] >= k.equivalent * (sum(Qadj[r] for r in find_us_reservoir(k.reservoir)) - k.spillreference))
             @constraint(subproblem, endcond[k = K_j], u_start[k].out == u[T,k])
             @constraint(subproblem, startcond[k = K_j], u_start[k].in == u[1,k])
             @constraint(subproblem, clearing[t=1:T], y[t] == sum(1* x[i,t].in +  1* x[i+1,t].in for i in 1:I))
@@ -804,16 +816,16 @@ function Anticipatory_Bidding(
             @constraint(subproblem, startup[t=1:T-1, k=K_j], d[t,k] >= u[t+1,k] - u[t,k])
             @constraint(subproblem, active[t=1:T, k=K_j], w[t,k] <= u[t,k] * k.spillreference * k.equivalent)
             @constraint(subproblem, production[t=1:T, k=K_j], w[t,k] <= sum(Qreal[t,r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
-            SDDP.parameterize(subproblem, Omega, P) do om
+            SDDP.parameterize(subproblem, Ω_A[node], P[node]) do om
                 # We have to make sure that depending on the market clearing price, the coefficients are set accordingly.
                 # The recourse action only applies to the real delivery, determined by the uncertain price. The other restricitions become inactive, else they make the problem infeasible.
                 # The constraints that are relevant are maiintained in Scenario_Index for every current time step.
                 for r in R
-                    JuMP.fix(f[r], om.inflow, force=true)
+                    JuMP.fix(f[r], om.inflow[r], force=true)
                     JuMP.set_normalized_rhs(adjustedflow[r], O.participationrate[r] * om.nomination[r])
                 end
-                for r in filter(r -> r in all_res && !(r in R), all_res)
-                    @constraint(subproblem, Qadj[r] == om.nomination[r])
+                for r in R_O
+                    JuMP.set_normalized_rhs(adjustedflowOther[r], om.nomination[r])
                 end
                 # Define Set of active variables for each hour
                 I_t = Dict(t => 0 for t in 1:T)
@@ -1256,7 +1268,8 @@ function MediumTermModel(
     iterations::Int64;
     stopping_rule = [SDDP.BoundStalling(10, 1e1)],
     printlevel = 1,
-    loop = true
+    loop = true,
+    optimize_model = true
 )   
     R = collect(filter(r -> j.participationrate[r] > 0, all_res))
     function subproblem_builder_medium(subproblem::Model, node::Int64)
@@ -1294,13 +1307,13 @@ function MediumTermModel(
         sense = :Max,
         upper_bound = Stages * sum(r.maxvolume * 500 * sum(k.equivalent for k in filter(k -> k.reservoir in find_ds_reservoirs(r), K)) * 5 for r in R),
         optimizer = CPLEX.Optimizer)
-
-    SDDP.train(
-        model_medium;
-        iteration_limit = iterations,
-        stopping_rules = stopping_rule,
-        print_level = printlevel)
-    
+    if optimize_model == true
+        SDDP.train(
+            model_medium;
+            iteration_limit = iterations,
+            stopping_rules = stopping_rule,
+            print_level = printlevel)
+    end
     V = SDDP.ValueFunction(model_medium; node = 1)
     return model_medium, V
 end
