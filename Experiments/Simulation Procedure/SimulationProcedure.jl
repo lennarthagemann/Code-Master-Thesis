@@ -25,7 +25,6 @@ using Plots
 using CSV
 using JSON
 using UUIDs
-using Serialization
 try
     using Revise
 catch e
@@ -44,10 +43,10 @@ R, K, J = read_data(filepath_Ljungan)
 
 const ColumnReservoir = Dict{Reservoir, String}(R[1] => "Flasjon Inflow", R[2] => "Holmsjon Inflow")
 const scenario_count_inflows = 1
-const scenario_count_prices = 3
+const scenario_count_prices = 1
 const scenario_count_prices_medium = 3
 const scenario_count_inflows_weekly = 3
-const stage_count_short = 3
+const stage_count_short = 2
 const stage_count_bidding = 2
 const stage_count_medium = 52
 const price_point_count = 5
@@ -66,8 +65,8 @@ InflowScenariosMedium = Inflow_Scenarios_Medium(inflow_data, ColumnReservoir, sc
 Ω_medium, P_medium =  create_Ω_medium(PriceScenariosMedium, InflowScenariosMedium, R);
 MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded = ReadMediumModel(savepath_watervalue, J, R, Ω_medium, P_medium, stage_count_medium, iteration_count_medium)
 
-Strategy = Dict(j => "Anticipatory" for j in J)
-
+Strategy = Dict(j => "Nonanticipatory" for j in J)
+mu_up, mu_down = BalanceParameters(price_data)
 
 """
 Simulate The Entire Procedure for one week, and obtain the solution afterwards. We are interested in
@@ -77,10 +76,8 @@ Simulate The Entire Procedure for one week, and obtain the solution afterwards. 
     - Realized Price
     - Reservoir Level Changes (Real / Individual)
 """
-function ExampleSimulation(R::Vector{Reservoir}, J::Vector{Participant}, inflow_data, price_data, MediumModel_j, MediumModel_O, currentweek::Int64, price_point_count::Int64; ColumnReservoir = ColumnReservoir)
+function ExampleSimulation(R::Vector{Reservoir}, J::Vector{Participant}, mu_up, mu_down, inflow_data, price_data, MediumModel_j, MediumModel_O, currentweek::Int64, price_point_count::Int64; ColumnReservoir = ColumnReservoir)
     PPoints = Create_Price_Points(price_data, price_point_count)
-    mu_up, mu_down = BalanceParameters(price_data)
-    
     l_traj, f = AverageReservoirLevel(R, inflow_data)
     Qref = CalculateReferenceFlow(R, l_traj, f, currentweek)
 
@@ -91,9 +88,17 @@ function ExampleSimulation(R::Vector{Reservoir}, J::Vector{Participant}, inflow_
     WaterCuts = Dict(j => WaterValueCuts(R, j, MediumModel_j[j], cuts[j], currentweek) for j in J)
     WaterCutsOther = Dict(j => WaterValueCuts(R, Others[j], MediumModel_O[j], cutsOther[j], currentweek) for j in J)
 
-    HourlyBiddingCurves, Qnoms1 = FirstLayerSimulation(J, R, Strategy, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, PPoints, iteration_count_short, mu_up, mu_down, T, stage_count_bidding, stage_count_short)
+    HourlyBiddingCurves, Qnoms1 = FirstLayerSimulation(J, R, Strategy, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, PPoints, iteration_count_short, mu_up, mu_down, T, stage_count_bidding)
 
-    return HourlyBiddingCurves, Qnoms1
+    price = Price_Scenarios_Short(price_data, 1, stage_count_short)[1][1]
+    Obligations = MarketClearing(price,  HourlyBiddingCurves, PPoints, J, T)
+    Qadj1, _, P_Swap1, _, _, _ = water_regulation(Qnoms1, Qref, T, false)
+
+    Qnoms2 = SecondLayerSimulation(J, R, Qnoms1, Qadj1, Obligations, price, price_data, inflow_data, Qref, cuts,  WaterCuts, iteration_count_short, mu_up, mu_down, T, stage_count_short)
+    Qadj2, _, P_Swap2, _, _, _ = water_regulation(Qnoms2, Qref, T, true)
+
+    z_ups, z_downs = ThirdLayerSimulation(J, R, Qadj2, P_Swap2, Obligations, mu_up, mu_down, T)
+    return HourlyBiddingCurves, Obligations, Qnoms1, Qadj1, P_Swap1, price, Qnoms2, Qadj2, P_Swap2, z_ups, z_downs
 end
 """
     SingleOwnerSimulation(R, K, price_data, inflow_data, cuts, WaterCuts, PPoints, iteration_count, mu_up, mu_down, T, stage_count_bidding)
@@ -115,7 +120,7 @@ end
     We include the generation of the nonanticipatory/anticipatory uncertainty sets here
     The HourlyBiddingCurves and Nominations are returned.
 """
-function FirstLayerSimulation(J::Vector{Participant}, all_res::Vector{Reservoir}, Strategy::Dict{Participant, String}, price_data::DataFrame, inflow_data::DataFrame, Qref::Dict{Reservoir, Float64}, cuts, cutsOther, WaterCuts, WaterCutsOther, PPoints::Vector{Float64}, iteration_count_short::Int64, mu_up::Float64, mu_down::Float64, T::Int64, stage_count_short::Int64, stage_count_bidding::Int64)
+function FirstLayerSimulation(J::Vector{Participant}, all_res::Vector{Reservoir}, Strategy::Dict{Participant, String}, price_data::DataFrame, inflow_data::DataFrame, Qref::Dict{Reservoir, Float64}, cuts, cutsOther, WaterCuts, WaterCutsOther, PPoints::Vector{Float64}, iteration_count_short::Int64, mu_up::Float64, mu_down::Float64, T::Int64, stage_count_bidding::Int64)
 
     HourlyBiddingCurves = Dict{Participant, Dict{Int64, Vector{Float64}}}()
     Qnoms = Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}()
@@ -128,8 +133,8 @@ function FirstLayerSimulation(J::Vector{Participant}, all_res::Vector{Reservoir}
             Qnom, HourlyBiddingCurve = Nonanticipatory_Bidding(R, j, PPoints, Ω_NA_local, P_NA_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding)
             HourlyBiddingCurves[j] = HourlyBiddingCurve
         else
-            println(R)
             Ω_A_local, P_A_local = create_Ω_Anticipatory(Ω_NA_local, Ω_scenario_local, P_scenario_local, J, j, all_res, PPoints, Qref, cutsOther, WaterCutsOther, stage_count_bidding, mu_up, mu_down, T)
+            println(Ω_A_local)
             Qnom, HourlyBiddingCurve = Anticipatory_Bidding(all_res, j, J, PPoints, Ω_A_local, P_A_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding)
             HourlyBiddingCurves[j] = HourlyBiddingCurve
         end
@@ -144,4 +149,59 @@ function FirstLayerSimulation(J::Vector{Participant}, all_res::Vector{Reservoir}
     return HourlyBiddingCurves, Qnoms
 end
 
-HourlyBiddingCurves, Qnoms = ExampleSimulation(R, J, inflow_data, price_data, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, currentweek, price_point_count)
+"""
+
+    SecondLayerSimulation(J, R, Qnoms1, Qadj1, Obligations, price_data, inflow_data, Qref, cuts, WaterCuts, iteration_count_short, mu_up, mu_down, T, stage_count_short)
+
+    Simulate the 
+"""
+function SecondLayerSimulation(J::Vector{Participant}, R::Vector{Reservoir}, Qnoms1, Qadj1, Obligations, price, price_data::DataFrame, inflow_data::DataFrame, Qref, cuts, WaterCuts, iteration_count_short::Int64, mu_up::Float64, mu_down::Float64, T::Int64, stage_count_short::Int64)
+    
+    QnomO1 = OthersNomination(Qnoms1, Qadj1, J, R)
+    Qnoms2 = Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}()
+    for j in J
+        Ω_NA_local, P_NA_local, _, _ = create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, R, stage_count_short, ColumnReservoir)
+        println(j)
+        Qnom =ShortTermScheduling(R, j, J, Qref, Obligations[j], price, QnomO1[j], Ω_NA_local, P_NA_local, cuts[j], WaterCuts[j], iteration_count_short, mu_up,mu_down, T, stage_count_short) 
+        for r in R
+            if j.participationrate[r] > 0
+                Qnoms2[(participant = j, reservoir = r)] = Qnom[r]
+            else
+                Qnoms2[(participant = j, reservoir = r)] = Qref[r]
+            end
+        end
+    end
+
+    return Qnoms2
+end
+
+"""
+ThirdLayerSimulation()
+
+    Final Layer of Decision making for all Participants.
+    With fixed Power Swaps and Obligations, make a Decision about how to schedule the power plants over the day.
+    Necessary to find realized revenue for all participants.
+"""
+
+function ThirdLayerSimulation(J, R, Qadj2, P_Swap2, Obligations, mu_up, mu_down, T)
+    z_ups = Dict{Participant, Vector{Float64}}()
+    z_downs = Dict{Participant, Vector{Float64}}()
+    for j in J
+        _, z_up, z_down, w = RealTimeBalancing(
+            R,
+            j,
+            Qadj2,
+            P_Swap2[j],
+            T,
+            mu_up,
+            mu_down,
+            Obligations[j])
+        z_ups[j] = z_up
+        z_downs[j] = z_down
+    end
+    return z_ups, z_downs
+end
+
+HourlyBiddingCurves, Obligations, Qnoms1, Qadj1, P_Swap1, price, Qnoms2, Qadj2, P_Swap2, z_ups, z_downs = ExampleSimulation(R, J, mu_up, mu_down,inflow_data, price_data, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, currentweek, price_point_count)
+
+Final_Revenue(J, price, Obligations, z_ups, z_downs, mu_up, mu_down, T)
