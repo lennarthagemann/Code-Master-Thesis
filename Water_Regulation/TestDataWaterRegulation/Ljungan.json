@@ -7,7 +7,7 @@
             "maxvolume":4e3
         },
         {
-            "dischargepoint": "Holsmjon",
+            "dischargepoint": "Holmsjon",
             "totalvolume": 2.1e3,
             "currentvolume": 1.785e3,
             "maxvolume":2.1e3
@@ -47,49 +47,49 @@
         }, 
         {
             "name": "Parteboda",
-            "reservoir": "Holsmjon",
+            "reservoir": "Holmsjon",
             "equivalent": 0.27,
             "spillreference": 140
         }, 
         {
             "name": "Hermansboda",
-            "reservoir": "Holsmjon",
+            "reservoir": "Holmsjon",
             "equivalent": 0.1,
             "spillreference": 140
         }, 
         {
             "name": "Ljunga",
-            "reservoir": "Holsmjon",
+            "reservoir": "Holmsjon",
             "equivalent": 0.45,
             "spillreference": 145
         }, 
         {
             "name": "Nederede",
-            "reservoir": "Holsmjon",
+            "reservoir": "Holmsjon",
             "equivalent": 0.07,
             "spillreference": 240
         }, 
         {
             "name": "Skallbole",
-            "reservoir": "Holsmjon",
+            "reservoir": "Holmsjon",
             "equivalent": 0.18,
             "spillreference": 265
         }, 
         {
             "name": "Matfors",
-            "reservoir": "Holsmjon",
+            "reservoir": "Holmsjon",
             "equivalent": 0.8,
             "spillreference": 250
         }, 
         {
             "name": "Viforsen",
-            "reservoir": "Holsmjon",
+            "reservoir": "Holmsjon",
             "equivalent": 0.07,
             "spillreference":160
         },
         {
             "name": "Jarnvagsforsen",
-            "reservoir": "Holsmjon",
+            "reservoir": "Holmsjon",
             "equivalent": 0.74,
             "spillreference": 145
         }
@@ -100,11 +100,11 @@
             "plants": ["Flasjo", "Trangfors", "Ratan", "Turinge", "Bursnas"],
             "participationrate": {
                 "Flasjon": 1.84,
-                "Holsmjon": 0.0
+                "Holmsjon": 0.0
             },
             "individualreservoir": {
                 "Flasjon": 1.5e3,
-                "Holsmjon": 1.8e3
+                "Holmsjon": 1.8e3
             } 
         },
         {
@@ -112,11 +112,11 @@
             "plants": ["Parteboda", "Hermansboda", "Ljunga"],
             "participationrate": {
                 "Flasjon": 0.82,
-                "Holsmjon": 0.82
+                "Holmsjon": 0.82
             },
             "individualreservoir": {
                 "Flasjon": 1e3,
-                "Holsmjon": 1.4e3
+                "Holmsjon": 1.4e3
             } 
         },
         {
@@ -124,15 +124,15 @@
             "plants": ["Nederede", "Skallbole", "Matfors", "Viforsen", "Jarnvagsforsen"],
             "participationrate": {
                 "Flasjon": 1.07,
-                "Holsmjon": 1.07
+                "Holmsjon": 1.07
             },
             "individualreservoir": {
                 "Flasjon": 2e3,
-                "Holsmjon": 1.8e2
+                "Holmsjon": 1.8e2
             } 
         }
     ],
     "Connections":{
-        "Holsmjon": ["Flasjon"]
+        "Holmsjon": ["Flasjon"]
     }
 }

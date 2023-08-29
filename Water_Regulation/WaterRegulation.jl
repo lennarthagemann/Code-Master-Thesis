@@ -11,7 +11,7 @@ using DataFrames
 using CSV
 using Dates
 using Distributions
-export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, ShortTermScheduling, RealTimeBalancing, MediumTermModel, WaterValueCuts, prepare_pricedata, prepare_inflowdata, Inflow_Scenarios_Short, Inflow_Scenarios_Medium, Price_Scenarios_Medium, BalanceParameters, Price_Scenarios_Short, Create_Price_Points, create_Ω_Nonanticipatory, create_Ω_Anticipatory, create_Ω_medium, ReservoirLevelCuts, CalculateReferenceFlow, AverageReservoirLevel, MediumModelsAllParticipants, SaveMediumModel, ReadMediumModel, MarketClearing, OthersNomination, Final_Revenue
+export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, ShortTermScheduling, RealTimeBalancing, MediumTermModel, SingleOwnerMediumTermModel, SingleOwnerBidding, SingleOwnerScheduling, WaterValueCuts, WaterValueCutsSingle, prepare_pricedata, prepare_inflowdata, Inflow_Scenarios_Short, Inflow_Scenarios_Medium, Price_Scenarios_Medium, BalanceParameters, Price_Scenarios_Short, Create_Price_Points, create_Ω_Nonanticipatory, create_Ω_Anticipatory, create_Ω_medium, ReservoirLevelCuts, ReservoirLevelCutsSingle, CalculateReferenceFlow, AverageReservoirLevel, MediumModelsAllParticipants, SaveMediumModel, ReadMediumModel, ReadMediumModelSingle, MarketClearing, MarketClearingSolo, OthersNomination, Final_Revenue
  
 mutable struct Reservoir
     dischargepoint::String
@@ -546,6 +546,16 @@ function _collect_solution_Bidding(sol, R, j, T)
     BidCurves = Dict(t => [sol[2][el] for el in filter(value -> startswith(String(value), "x") && endswith(String(value), ",$(t)]"), ks)] for t in 1:T)
     return Qnom, BidCurves
 end
+
+"""
+Helper Function to extract solution from Solo Bidding Problem
+"""
+function _collect_solution_Bidding_Single(sol, R::Vector{Reservoir}, T::Int64)
+    ks = sort(collect(keys(sol[2])))
+    BidCurves = Dict(t => [sol[2][el] for el in filter(value -> startswith(String(value), "x") && endswith(String(value), ",$(t)]"), ks)] for t in 1:T)
+    return BidCurves
+end
+
 """
 Helper Function to extract solution from ShortTermScheduling Problem.
 """
@@ -553,12 +563,26 @@ function _collect_solution_Short(sol, R::Vector{Reservoir}, j::Participant, T::I
     Qnom = Dict{Reservoir, Float64}(r => 0.0 for r in R)
     for r in R
         if j.participationrate[r] > 0.0
-            Qnom[r] = sol.controls[:Qnom][r]
+            Qnom[r] = sol.controls[:Q]
         end
     end
     println("Nomination: \n", Qnom)
     return Qnom
 end
+
+"""
+Helper Function to extract solution from ShortTermScheduling Problem.
+"""
+function _collect_solution_Short_Solo(sol, R::Vector{Reservoir}, T::Int64)
+    Qnom = Dict{Reservoir, Float64}(r => 0.0 for r in R)
+    for r in R
+        Qnom[r] = sum(sol.controls[:Q][t, r] for t in 1:T)/T
+    end
+    z_up = sol.controls[:z_up]
+    z_down = sol.controls[:z_down]
+    return Qnom, z_up, z_down
+end
+
 
 
 """
@@ -602,6 +626,18 @@ function ReadMediumModel(savepath::String, J::Vector{Participant}, R::Vector{Res
     return dict_j, dict_O
 end
 
+"""
+ReadMediumModelSingle(savepath::String, R, K, Ω_medium, P_medium, stage_count_medium, iterations)
+
+read in cuts from saved json.
+Set up a new Policy graph and add cuts to untrained model.
+"""
+
+function ReadMediumModelSingle(savepath::String, R::Vector{Reservoir}, K::Vector{HydropowerPlant}, Ω_medium, P_medium, stage_count_medium, iterations)
+    modelmedium, _ = SingleOwnerMediumTermModel(R, K, Ω_medium, P_medium, stage_count_medium, iterations; optimize_model = false)
+    SDDP.read_cuts_from_file(modelmedium, savepath * "\\SingleOwner\\MediumModel.json")
+    return modelmedium
+end
 
 #=
 _____________________________________________________________________________________
@@ -695,11 +731,11 @@ function Nonanticipatory_Bidding(
                     end
                 end
                 # Include only active variables in stageobjective
-                if node < Stages
-                    @stageobjective(subproblem , sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t] - S * sum(d[t,k] for k in K_j) for t in 1:T))
-                else
-                    @stageobjective(subproblem , sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t] - S * sum(d[t,k] for k in K_j) for t in 1:T) + lambda * (a_real + a_ind))
-                end
+                # if node < Stages
+                @stageobjective(subproblem , sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t] - S * sum(d[t,k] for k in K_j) for t in 1:T) + lambda * (a_real + a_ind))
+                # else
+                #     @stageobjective(subproblem , sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t] - S * sum(d[t,k] for k in K_j) for t in 1:T) + lambda * (a_real + a_ind))
+                # end
                 # Fix / Deactivate constraints by setting their coefficients to appropriate values or all zero.
                 for t in 1:T
                     for i in 1:I
@@ -1070,7 +1106,7 @@ ________________________________________________________________________________
 
 =#
 
-function SingleOwnerBdding(
+function SingleOwnerBidding(
     R::Array{Reservoir},
     K::Array{HydropowerPlant},
     PPoints::Array{Float64},
@@ -1078,15 +1114,19 @@ function SingleOwnerBdding(
     P,
     cuts,
     WaterCuts,
-    iteration_count::Int64;
-    mu_up = 1.0,
-    mu_down = 0.1,
-    S = 0.3,
-    printlevel = 1,
-    T = 24,
-    Stages = stages,
+    mu_up::Float64,
+    mu_down::Float64,
+    iteration_count::Int64,
+    T::Int64,
+    Stages = stages;
+    S = 200,
     stopping_rule = [SDDP.BoundStalling(10, 1e-4)],
+    printlevel = 1,
     optimizer = CPLEX.Optimizer)
+
+
+    I = length(PPoints) - 1
+
     function subproblem_builder_single_bidding(subproblem::Model, node::Int64)
         # State Variables
         @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = r.currentvolume)
@@ -1096,7 +1136,7 @@ function SingleOwnerBdding(
         @constraint(subproblem, increasing[i = 1:I, t=1:T], x[i,t].out <= x[i+1,t].out)
         if node == Stages
             @variable(subproblem, a)
-            for (k,c) in cuts
+            for c in cuts
                 @constraint(subproblem, a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
             end
         end
@@ -1127,7 +1167,7 @@ function SingleOwnerBdding(
             @constraint(subproblem, production[t = 1:T, k = K], w[t,k] <= sum(Qreal[t, r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
             @constraint(subproblem, obligation[t = 1:T], y[t] == sum(w[t, k] for k in K) + z_up[t] - z_down[t])
             # Parameterize Uncertainty and Objective Function
-            SDDP.parameterize(subproblem, Omega, P) do om
+            SDDP.parameterize(subproblem, Omega[node], P[node]) do om
                 for r in R
                     JuMP.fix(f[r], om.inflow[r], force=true)
                 end
@@ -1162,7 +1202,7 @@ function SingleOwnerBdding(
         end
     end
     model_single_bidding = SDDP.LinearPolicyGraph(subproblem_builder_single_bidding; stages = Stages, sense = :Max,
-    upper_bound = Stages * sum(sum(k.spillreference * k.equivalent for k in K) for t in 1:T for s in 1:Stages), optimizer = optimizer)
+    upper_bound = Stages * sum(sum(k.spillreference * k.equivalent for k in K) for t in 1:T for s in 1:Stages) * mu_up, optimizer = optimizer)
     SDDP.train(model_single_bidding; stopping_rules = stopping_rule, iteration_limit = iteration_count, print_level = printlevel)
     rule_single_bidding = SDDP.DecisionRule(model_single_bidding; node = 1)
     sol_single_bidding = SDDP.evaluate(
@@ -1170,23 +1210,25 @@ function SingleOwnerBdding(
         incoming_state = Dict(Symbol("l[$(r.dischargepoint)]") => r.currentvolume for r in R),
         controls_to_record = [:x],
     )
-    return sol_single_bidding
+    HourlyBiddingCurve = _collect_solution_Bidding_Single(sol_single_bidding, R, T)
+    return HourlyBiddingCurve
 end
 
 function SingleOwnerScheduling(R::Array{Reservoir},
     K::Array{HydropowerPlant},
-    y_initial::Dict{Int64, Float64},
+    y_initial::Vector{Float64},
     price::Vector{Float64},
-    f_initial::Dict{Reservoir, Float64},
-    Omega,
+    f_initial::Dict{Reservoir, Vector{Float64}},
+    Ω,
     P,
     cuts,
     WaterCuts,
-    mu_up = 1.0,
-    mu_down = 0.1;
-    iteration_count,
-    T = 24,
-    Stages = stages,
+    mu_up::Float64,
+    mu_down::Float64,
+    iteration_count::Int64,
+    T::Int64,
+    Stages::Int64;
+    S = 200,
     printlevel = 1,
     stopping_rule = [SDDP.BoundStalling(10, 1e-4)],
     optimizer = CPLEX.Optimizer)
@@ -1211,7 +1253,7 @@ function SingleOwnerScheduling(R::Array{Reservoir},
         # Constraints
         if node == Stages
             @variable(subproblem, a)
-            for (k,c) in cuts
+            for c in cuts
                 @constraint(subproblem, a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
             end
         end
@@ -1224,34 +1266,105 @@ function SingleOwnerScheduling(R::Array{Reservoir},
         @constraint(subproblem, activeplant[t = 1:T, k = K], w[t,k] <= u[t,k] * k.equivalent * k.spillreference)
         @constraint(subproblem, production[t = 1:T, k = K], w[t,k] <= sum(Q[t, r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
         # Parameterize Uncertainty
-        SDDP.parameterize(subproblem, Omega, P) do om
+        SDDP.parameterize(subproblem, Ω[node], P[node]) do om
             if node == 1
                 for t in 1:T
                     JuMP.fix(y[t], y_initial[t])
                 end
                 for r in R
-                    JuMP.fix(f[r], f_initial[r])
+                    JuMP.fix(f[r], f_initial[r][1])
                 end
-                @stageobjective(subproblem, sum(price[t] * y[t] - mu_up * z_up[t] + mu_down * z_down[t]  - sum(S * d[t,k] for k in K) for t in 1:T) + a)
-            else
+                @stageobjective(subproblem, sum(price[t] * y[t] - mu_up * z_up[t] + mu_down * z_down[t]  - sum(S * d[t,k] for k in K) for t in 1:T))
+            elseif node == Stages
                 for r in R
                     JuMP.fix(f[r], om.inflow[r])
                 end
                 @stageobjective(subproblem, sum(om.price[t] * sum(w[t, k] for k in K) - sum(S * d[t, k] for k in K) for t in 1:T) + a)
+  
+            else
+                for r in R
+                    JuMP.fix(f[r], om.inflow[r])
+                end
+                @stageobjective(subproblem, sum(om.price[t] * sum(w[t, k] for k in K) - sum(S * d[t, k] for k in K) for t in 1:T))
             end
         end
     end
     model_single_short = SDDP.LinearPolicyGraph(subproblem_builder_single_short;
-    stages = Stages, sense = :Max, upper_bound = Stages * T * sum(k.spillreference * k.equivalent for k in K), optimizer = optimizer)
+    stages = Stages, sense = :Max, upper_bound = Stages * T * sum(k.spillreference * k.equivalent for k in K) * mu_up, optimizer = optimizer)
 
     SDDP.train(model_single_short; iteration_limit = iteration_count, stopping_rules = stopping_rule, print_level = printlevel)
 
     rule_single_short = SDDP.DecisionRule(model_single_short; node = 1)
     sol_single_short = SDDP.evaluate(rule_single_short; incoming_state = Dict(Symbol("l[$(r.dischargepoint)]") => r.currentvolume for r in R),
-    controls_to_record = [:Q, :u, :d])
-    return sol_single_short
+    controls_to_record = [:Q, :u, :d, :z_up, :z_down])
+
+    Qnom, z_up, z_down = _collect_solution_Short_Solo(sol_single_short, R, T)
+    return Qnom, z_up, z_down
 end
 
+
+"""
+
+SingleOwnerMediumTermModel(R, K, Omega, P, Stages; iterations, stopping_rule, printlevel, loop)
+
+"""
+function SingleOwnerMediumTermModel(
+    R::Vector{Reservoir},
+    K::Vector{HydropowerPlant},
+    Ω,
+    P,
+    Stages::Int64,
+    iterations::Int64;
+    stopping_rule = [SDDP.BoundStalling(10, 1e1)],
+    printlevel = 1,
+    loop = true,
+    optimize_model = true
+)   
+    function subproblem_builder_medium(subproblem::Model, node::Int64)
+        # State Variables
+        @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, initial_value = r.currentvolume, SDDP.State)
+        # Control Variables
+        @variable(subproblem, Q[r = R] >= 0)
+        @variable(subproblem, s[r = R] >= 0)
+        @variable(subproblem, w[k = K] <= k.spillreference * k.equivalent)
+        # Random Variables
+        @variable(subproblem, f[r = R])
+        # Transition Function 
+        @constraint(subproblem, balance[r = R],  l[r].out == l[r].in - 7 *(Q[r] - f[r]) - s[r])
+        # Constraints
+        # @constraint(subproblem, balance_limits[r = R], lmin[node] <=  l[r].out <= lmax[node])
+        @constraint(subproblem, production[k = K], w[k] <= sum(Q[r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
+        # Objective
+        # Parameterize Uncertainty
+        SDDP.parameterize(subproblem, Ω[node], P[node]) do om
+            for r in R
+                JuMP.fix(f[r], om.inflow[r])
+            end
+            @stageobjective(subproblem, om.price * 7 * sum(w[k] for k in K))
+        end
+    end
+
+    graph = SDDP.LinearGraph(Stages)
+    # We can choose to solve an infinite horizon model, so that the Reservoir is not always empty at the end of the horizon
+    if loop
+        SDDP.add_edge(graph, Stages => 1, 0.5)
+    end
+    model_medium = SDDP.PolicyGraph(
+        subproblem_builder_medium,
+        graph;
+        sense = :Max,
+        upper_bound = Stages * sum(r.maxvolume * 500 * sum(k.equivalent for k in filter(k -> k.reservoir in find_ds_reservoirs(r), K)) * 5 for r in R),
+        optimizer = CPLEX.Optimizer)
+    if optimize_model == true
+        SDDP.train(
+            model_medium;
+            iteration_limit = iterations,
+            stopping_rules = stopping_rule,
+            print_level = printlevel)
+    end
+    V = SDDP.ValueFunction(model_medium; node = 1)
+    return model_medium, V
+end
 
 #=
 _____________________________________________________________________________________
@@ -1355,6 +1468,35 @@ function WaterValueCuts(all_res::Vector{Reservoir}, j::Participant, model_medium
     return ReservoirWaterValueCuts
 end
 
+
+"""
+
+WaterValueCutsSingle(R, V, cuts)
+
+
+For different reservoir levels, we can derive the objective value and gradient of the objective.
+Through Rearranging, we can get the water value function cut coefficients of the linear functions.
+We already have the slope (gradient, so we only need to find out the y-coordinate.) We take the current function value, and subtract the gradient * current x value.
+
+-Obtain objvalues and gradients while iterating over all cut combinations
+-Return Cuts as Named tuple describing the linear function
+
+Return: Array of Coefficients for Water value Function
+
+"""
+function WaterValueCutsSingle(R::Vector{Reservoir}, model_medium::SDDP.PolicyGraph{Int64}, cuts::Array{Dict{Reservoir, Float64}}, week::Int64)
+    @assert 1 <= week <= 52
+    V = SDDP.ValueFunction(model_medium; node = week)
+    objvalues = []
+    gradients = []
+    for c in cuts
+        push!(objvalues, SDDP.evaluate(V, Dict(Symbol("l[$(r.dischargepoint)]") => c[r] for r in R))[1])
+        push!(gradients, SDDP.evaluate(V, Dict(Symbol("l[$(r.dischargepoint)]") => c[r] for r in R))[2])
+    end
+    ReservoirWaterValueCuts = Dict(c => (e1 = objvalues[i] - min(objvalues...), e2 = gradients[i]) for (i,c) in enumerate(cuts))
+    return ReservoirWaterValueCuts
+end
+
 """
 
 ReservoirLevelCuts(R, K, f, week)
@@ -1369,6 +1511,27 @@ ReservoirLevelCuts(R, K, f, week)
 function ReservoirLevelCuts(all_res::Vector{Reservoir}, K::Vector{HydropowerPlant}, j::Participant, f::Dict{Reservoir, Vector{Float64}}, week::Int64, Stages::Int64)::Vector{Dict{Reservoir, Float64}}
     @assert 1 <= week <= 52
     R = collect(filter(r -> j.participationrate[r] > 0, all_res))
+    weeklyInflow = Dict(r => mean(f[r][(week - 1) * 7 + 1: week * 7]) for r in R) 
+    maxGeneration  = Dict(r => max([k.spillreference for k in filter(k -> k.reservoir in  find_ds_reservoirs(r), K)]...) for r in R)
+    reservoircutvalues = Dict(r => min.(max.([r.currentvolume, r.currentvolume - maxGeneration[r] * Stages, r.currentvolume + weeklyInflow[r] * Stages, r.currentvolume + (weeklyInflow[r] - maxGeneration[r]) * Stages, 0], 0), r.maxvolume) for r in R)
+    combs = Iterators.product(values(reservoircutvalues)...)
+    cuts = vec([Dict(r => v for (r,v) in zip(keys(reservoircutvalues), combo)) for combo in combs])
+    return cuts
+end
+
+"""
+
+ReservoirLevelCutsSingle(R, K, f, week)
+
+    Create an Array of reservoir values used in the cut generation of the Water Value Function.
+    These Values should correspond to relevant values in the proximity of the current reservoir level. Examples:
+    - No Change (Current Reservoir Level)
+    - Low/High Inflow
+    - No/High production
+    These all give us cuts to estimate an area which is relevant to the next stages optimization.
+"""
+function ReservoirLevelCutsSingle(R::Vector{Reservoir}, K::Vector{HydropowerPlant}, f::Dict{Reservoir, Vector{Float64}}, week::Int64, Stages::Int64)::Vector{Dict{Reservoir, Float64}}
+    @assert 1 <= week <= 52
     weeklyInflow = Dict(r => mean(f[r][(week - 1) * 7 + 1: week * 7]) for r in R) 
     maxGeneration  = Dict(r => max([k.spillreference for k in filter(k -> k.reservoir in  find_ds_reservoirs(r), K)]...) for r in R)
     reservoircutvalues = Dict(r => min.(max.([r.currentvolume, r.currentvolume - maxGeneration[r] * Stages, r.currentvolume + weeklyInflow[r] * Stages, r.currentvolume + (weeklyInflow[r] - maxGeneration[r]) * Stages, 0], 0), r.maxvolume) for r in R)
@@ -1483,14 +1646,15 @@ function Inflow_Scenarios_Medium(inflow_data::DataFrame, ColumnReservoir::Dict{R
 end
 
 """
-    Inflow_Scenarios_Short(inflow_data, week, ColumnReservoir; stage_count, scenario_count)
+    Inflow_Scenarios_Short(inflow_data, week, R, stage_count, scenario_count)
 
     returns inflow scenario(s) based on historical inflow data.
     As inflow is very sensitive towards time of the year, we need the current week as parameter.
 """
-function Inflow_Scenarios_Short(inflow_data, week::Int64, ColumnReservoir::Dict{Reservoir, String}, R::Vector{Reservoir}, stage_count::Int64, scenario_count::Int64)::Dict{Int64, Dict{Reservoir, Vector{Float64}}}
+function Inflow_Scenarios_Short(inflow_data, week::Int64, R::Vector{Reservoir}, stage_count::Int64, scenario_count::Int64)::Vector{Dict{Reservoir, Vector{Float64}}}
+    ColumnReservoir = Dict(r => r.dischargepoint * " Inflow" for r in R)
     weekly_inflow = inflow_data[inflow_data.CalendarWeek .== week, ["Holmsjon Inflow", "Flasjon Inflow"]]
-    InflowScenariosShort = Dict(i => Dict(r => max.([weekly_inflow[rand(1:nrow(weekly_inflow)), ColumnReservoir[r]] for s in 1:scenario_count], 0) for r in R) for i in 1:stage_count)
+    InflowScenariosShort = [Dict(r => max.([weekly_inflow[rand(1:nrow(weekly_inflow)), ColumnReservoir[r]] for s in 1:scenario_count], 0) for r in R) for i in 1:stage_count]
     return InflowScenariosShort
 end
 
@@ -1568,10 +1732,10 @@ end
     Return a Dictionary of stagewise uncertainty sets.
 
 """
-function create_Ω_Nonanticipatory(price_data::DataFrame, inflow_data::DataFrame, scenario_count_prices::Int64, scenario_count_inflows::Int64, currentweek::Int64, R::Vector{Reservoir}, stage_count::Int64, ColumnReservoir::Dict{Reservoir, String})
+function create_Ω_Nonanticipatory(price_data::DataFrame, inflow_data::DataFrame, scenario_count_prices::Int64, scenario_count_inflows::Int64, currentweek::Int64, R::Vector{Reservoir}, stage_count::Int64)
     # Generate Price and Inflow Scenarios
     PriceScenariosShort = Price_Scenarios_Short(price_data, scenario_count_prices, stage_count; quantile_bounds = 0.1)
-    InflowScenariosShort = Inflow_Scenarios_Short(inflow_data, currentweek, ColumnReservoir, R, stage_count, scenario_count_inflows)
+    InflowScenariosShort = Inflow_Scenarios_Short(inflow_data, currentweek, R, stage_count, scenario_count_inflows)
     # Combine Scenarios to Uncertainty Set
     Ω = Dict(i => [(inflow = Dict(r => InflowScenariosShort[i][r][j] for r in R), price = c) for c in PriceScenariosShort[i] for j in eachindex(InflowScenariosShort[i][R[1]])] for i in 1:stage_count)
     P = Dict(s => [1/length(eachindex(Ω[s])) for i in eachindex(Ω[s])] for s in 1:stage_count)
@@ -1679,6 +1843,32 @@ function MarketClearing(price::Vector{Float64}, BiddingCurves::Dict{Participant,
                 if (i == I_t[t])
                     Obligation[j][t] = BiddingCurves[j][t][i] * ((price[t] - PPoints[i])/(PPoints[i+1] - PPoints[i])) + BiddingCurves[j][t][i+1] * ((PPoints[i+1] - price[t])/(PPoints[i+1] - PPoints[i]))
                 end
+            end
+        end
+    end
+    return Obligation
+end
+"""
+
+MarketClearingSolo(price, BiddingCurve, PPoints, T)
+
+For a realized price, determine how much each participatn hast to deliver through linear interpolation of their bids.
+"""
+function MarketClearingSolo(price::Vector{Float64}, BiddingCurve, PPoints::Vector{Float64}, T::Int64)::Vector{Float64}
+    I = length(PPoints) - 1
+    Obligation = [0.0 for i in 1:T]
+    I_t = Dict(t => 0 for t in 1:T) # Find index of Price Points where price lies directly above
+    for t in 1:T
+        for i in 1:I
+            if (price[t] >= PPoints[i]) && (price[t] <= PPoints[i+1])
+                I_t[t] = i
+            end
+        end
+    end
+    for t in 1:T
+        for i in 1:I
+            if (i == I_t[t])
+                Obligation[t] = BiddingCurve[t][i] * ((price[t] - PPoints[i])/(PPoints[i+1] - PPoints[i])) + BiddingCurve[t][i+1] * ((PPoints[i+1] - price[t])/(PPoints[i+1] - PPoints[i]))
             end
         end
     end

@@ -41,9 +41,9 @@ const savepath_watervalue = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thes
 
 R, K, J = read_data(filepath_Ljungan)
 
-const ColumnReservoir = Dict{Reservoir, String}(R[1] => "Flasjon Inflow", R[2] => "Holmsjon Inflow")
+const ColumnReservoir = Dict(r => r.dischargepoint * " Inflow" for r in R)
 const scenario_count_inflows = 1
-const scenario_count_prices = 1
+const scenario_count_prices = 50
 const scenario_count_prices_medium = 3
 const scenario_count_inflows_weekly = 3
 const stage_count_short = 2
@@ -64,10 +64,34 @@ PriceScenariosMedium = Price_Scenarios_Medium(price_data, scenario_count_prices_
 InflowScenariosMedium = Inflow_Scenarios_Medium(inflow_data, ColumnReservoir, scenario_count_inflows_weekly, R)
 Ω_medium, P_medium =  create_Ω_medium(PriceScenariosMedium, InflowScenariosMedium, R);
 MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded = ReadMediumModel(savepath_watervalue, J, R, Ω_medium, P_medium, stage_count_medium, iteration_count_medium)
-
+MediumModelSingle = ReadMediumModelSingle(savepath_watervalue, R, K, Ω_medium, P_medium, stage_count_medium, iteration_count_medium)
 Strategy = Dict(j => "Nonanticipatory" for j in J)
 mu_up, mu_down = BalanceParameters(price_data)
 
+"""
+    SingleOwnerSimulation(R, K, price_data, inflow_data, cuts, WaterCuts, PPoints, iteration_count, mu_up, mu_down, T, stage_count_bidding)
+
+    Simulate the Bidding and Subsequent Short Term Optimization for the Single Owner Model.
+    We are interested in how the single owner model performs compared to the water regulation Procedure.
+    Therefore, we need to extract the water used, the hourly bidding curves, etc.
+    What is more efficient, who earns the most money?
+    
+"""
+function SingleOwnerSimulation(R::Vector{Reservoir}, K::Vector{HydropowerPlant}, mu_up, mu_down, inflow_data, price_data, MediumModelSingle, currentweek::Int64, price_point_count::Int64, iteration_count_bidding::Int64, T::Int64, stage_count_bidding::Int64, stage_count_short::Int64, scenario_count_prices::Int64, scenario_count_inflows::Int64)
+    PPoints = Create_Price_Points(price_data, price_point_count)
+    _, f = AverageReservoirLevel(R, inflow_data)
+    cuts =  ReservoirLevelCutsSingle(R, K,  f, currentweek, stage_count_short) 
+    WaterCuts = WaterValueCutsSingle(R, MediumModelSingle, cuts, currentweek)
+    Ω, P, _, _= create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, R, stage_count_bidding)
+    HourlyBiddingCurve = SingleOwnerBidding(R, K, PPoints, Ω, P , cuts, WaterCuts, mu_up, mu_down, iteration_count_bidding, T, stage_count_bidding)
+    price = Price_Scenarios_Short(price_data, 1, stage_count_short)[1][1]
+    inflow = Inflow_Scenarios_Short(inflow_data, currentweek, R, stage_count_short, scenario_count_inflows)[1]
+    Obligations = MarketClearingSolo(price,  HourlyBiddingCurve, PPoints, T)
+    Qnom, z_up, z_down = SingleOwnerScheduling(R, K, Obligations, price, inflow, Ω, P, cuts, WaterCuts, mu_up, mu_down, iteration_count_short, T, stage_count_short)
+    return HourlyBiddingCurve, Obligations, price, Qnom, z_up, z_down
+end
+
+HourlyBiddingCurve, Obligations, price, Qnom, z_up, z_down = SingleOwnerSimulation(R, K, mu_up, mu_down, inflow_data, price_data, MediumModelSingle, currentweek, price_point_count, iteration_count_Bidding, T, stage_count_bidding, stage_count_short, scenario_count_prices, scenario_count_inflows)
 """
 Simulate The Entire Procedure for one week, and obtain the solution afterwards. We are interested in
     - Total revenue
@@ -75,7 +99,7 @@ Simulate The Entire Procedure for one week, and obtain the solution afterwards. 
     - Day Ahead Obligations
     - Realized Price
     - Reservoir Level Changes (Real / Individual)
-"""
+    """
 function ExampleSimulation(R::Vector{Reservoir}, J::Vector{Participant}, mu_up, mu_down, inflow_data, price_data, MediumModel_j, MediumModel_O, currentweek::Int64, price_point_count::Int64; ColumnReservoir = ColumnReservoir)
     PPoints = Create_Price_Points(price_data, price_point_count)
     l_traj, f = AverageReservoirLevel(R, inflow_data)
@@ -100,18 +124,7 @@ function ExampleSimulation(R::Vector{Reservoir}, J::Vector{Participant}, mu_up, 
     z_ups, z_downs = ThirdLayerSimulation(J, R, Qadj2, P_Swap2, Obligations, mu_up, mu_down, T)
     return HourlyBiddingCurves, Obligations, Qnoms1, Qadj1, P_Swap1, price, Qnoms2, Qadj2, P_Swap2, z_ups, z_downs
 end
-"""
-    SingleOwnerSimulation(R, K, price_data, inflow_data, cuts, WaterCuts, PPoints, iteration_count, mu_up, mu_down, T, stage_count_bidding)
 
-    Simulate the Bidding and Subsequent Short Term Optimization for the Single Owner Model.
-    We are interested in how the single owner model performs compared to the water regulation Procedure.
-    Therefore, we need to extract the water used, the hourly bidding curves, etc.
-    What is more efficient, who earns the most money?
-    
-"""
-function SingleOwnerSimulation()
-    
-end
 
 """
     FirstLayerSimulation(Strategy)
@@ -127,7 +140,7 @@ function FirstLayerSimulation(J::Vector{Participant}, all_res::Vector{Reservoir}
 
     for j in J
         R = collect(filter(r -> j.participationrate[r] > 0.0, all_res))
-        Ω_NA_local, P_NA_local, Ω_scenario_local, P_scenario_local = create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, all_res, stage_count_bidding, ColumnReservoir)
+        Ω_NA_local, P_NA_local, Ω_scenario_local, P_scenario_local = create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, all_res, stage_count_bidding)
         if Strategy[j] == "Nonanticipatory"
             println(cuts[j])
             Qnom, HourlyBiddingCurve = Nonanticipatory_Bidding(R, j, PPoints, Ω_NA_local, P_NA_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding)
@@ -160,7 +173,7 @@ function SecondLayerSimulation(J::Vector{Participant}, R::Vector{Reservoir}, Qno
     QnomO1 = OthersNomination(Qnoms1, Qadj1, J, R)
     Qnoms2 = Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}()
     for j in J
-        Ω_NA_local, P_NA_local, _, _ = create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, R, stage_count_short, ColumnReservoir)
+        Ω_NA_local, P_NA_local, _, _ = create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, R, stage_count_short)
         println(j)
         Qnom =ShortTermScheduling(R, j, J, Qref, Obligations[j], price, QnomO1[j], Ω_NA_local, P_NA_local, cuts[j], WaterCuts[j], iteration_count_short, mu_up,mu_down, T, stage_count_short) 
         for r in R

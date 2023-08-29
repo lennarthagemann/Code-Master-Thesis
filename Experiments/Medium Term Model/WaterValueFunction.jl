@@ -39,18 +39,27 @@ price_data = prepare_pricedata(filepath_prices)
 inflow_data = prepare_inflowdata(filepath_inflows)
 l_traj, f = AverageReservoirLevel(R, inflow_data)
 
-PriceScenariosMedium = Price_Scenarios_Medium(price_data, scenario_count_prices_medium)
-InflowScenariosMedium = Inflow_Scenarios_Medium(inflow_data, ColumnReservoir, scenario_count_inflows_weekly, R)
+function saveWaterValuesParticipants(J, R, price_data, inflow_data, savepath_watervalue; scenario_count_prices_medium, scenario_count_inflows_weekly, ColumnReservoir, stage_count_medium, iterations_medium )
+    PriceScenariosMedium = Price_Scenarios_Medium(price_data, scenario_count_prices_medium)
+    InflowScenariosMedium = Inflow_Scenarios_Medium(inflow_data, ColumnReservoir, scenario_count_inflows_weekly, R)
 
-Ω_medium, P_medium =  create_Ω_medium(PriceScenariosMedium, InflowScenariosMedium, R);
-MediumModelDictionary_j, MediumModelDictionary_O = MediumModelsAllParticipants(J, R, Ω_medium, P_medium, stage_count_medium, iterations_medium; print_level = 1)
-for j in J
-    SDDP.write_cuts_to_file(MediumModelDictionary_j[j], savepath_watervalue * "\\Participant\\$(j).json")
-    SDDP.write_cuts_to_file(MediumModelDictionary_O[j], savepath_watervalue * "\\OtherParticipant\\$(j).json")
+    Ω_medium, P_medium =  create_Ω_medium(PriceScenariosMedium, InflowScenariosMedium, R);
+    MediumModelDictionary_j, MediumModelDictionary_O = MediumModelsAllParticipants(J, R, Ω_medium, P_medium, stage_count_medium, iterations_medium; print_level = 1)
+    for j in J
+        SDDP.write_cuts_to_file(MediumModelDictionary_j[j], savepath_watervalue * "\\Participant\\$(j).json")
+        SDDP.write_cuts_to_file(MediumModelDictionary_O[j], savepath_watervalue * "\\OtherParticipant\\$(j).json")
+    end
 end
-# SaveMediumModel(savepath_watervalue * "\\Participant.jls", MediumModelDictionary_j)
-# SaveMediumModel(savepath_watervalue * "\\OtherParticipant.jls", MediumModelDictionary_O)
 
+function SaveWaterValuesSolo(R, K, inflow_data, price_data, Stages, iterations, savepath_watervalue)
+    PriceScenariosMedium = Price_Scenarios_Medium(price_data, scenario_count_prices_medium)
+    InflowScenariosMedium = Inflow_Scenarios_Medium(inflow_data, ColumnReservoir, scenario_count_inflows_weekly, R)
+    Ω_medium, P_medium =  create_Ω_medium(PriceScenariosMedium, InflowScenariosMedium, R);
+    model_medium, _ = SingleOwnerMediumTermModel(R, K, Ω_medium, P_medium, Stages, iterations)
+    SDDP.write_cuts_to_file(model_medium, savepath_watervalue)
+end
+
+SaveWaterValuesSolo(R, K, inflow_data, price_data, stage_count_medium, iterations_medium, savepath_watervalue * "\\SingleOwner\\MediumModel.json")
 cuts_j = Dict(j => ReservoirLevelCuts(R, j.plants, j, f, week, 7) for j in J)
 Others = Dict(j => OtherParticipant(J,j,R)[1] for j in J)
 cutsOther = Dict(j => ReservoirLevelCuts(R, Others[j].plants, Others[j], f, week, stage_count_short) for j in J)
