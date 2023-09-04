@@ -32,7 +32,7 @@ const stage_count_medium = 52
 const stage_count_short = 2
 const scenario_count_prices_medium = 3
 const scenario_count_inflows_weekly = 3
-const iterations_medium = 100
+const iterations_medium = 1000
 const week = 2
 
 price_data = prepare_pricedata(filepath_prices)
@@ -51,6 +51,8 @@ function saveWaterValuesParticipants(J, R, price_data, inflow_data, savepath_wat
     end
 end
 
+saveWaterValuesParticipants(J, R, price_data, inflow_data, savepath_watervalue; scenario_count_prices_medium, scenario_count_inflows_weekly, ColumnReservoir, stage_count_medium, iterations_medium)
+
 function SaveWaterValuesSolo(R, K, inflow_data, price_data, Stages, iterations, savepath_watervalue)
     PriceScenariosMedium = Price_Scenarios_Medium(price_data, scenario_count_prices_medium)
     InflowScenariosMedium = Inflow_Scenarios_Medium(inflow_data, ColumnReservoir, scenario_count_inflows_weekly, R)
@@ -59,7 +61,7 @@ function SaveWaterValuesSolo(R, K, inflow_data, price_data, Stages, iterations, 
     SDDP.write_cuts_to_file(model_medium, savepath_watervalue)
 end
 
-SaveWaterValuesSolo(R, K, inflow_data, price_data, stage_count_medium, iterations_medium, savepath_watervalue * "\\SingleOwner\\MediumModel.json")
+# SaveWaterValuesSolo(R, K, inflow_data, price_data, stage_count_medium, iterations_medium, savepath_watervalue * "\\SingleOwner\\MediumModel.json")
 cuts_j = Dict(j => ReservoirLevelCuts(R, j.plants, j, f, week, 7) for j in J)
 Others = Dict(j => OtherParticipant(J,j,R)[1] for j in J)
 cutsOther = Dict(j => ReservoirLevelCuts(R, Others[j].plants, Others[j], f, week, stage_count_short) for j in J)

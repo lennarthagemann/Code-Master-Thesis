@@ -543,7 +543,7 @@ function _collect_solution_Bidding(sol, R, j, T)
             Qnom[r] = sol[2][filter(value -> startswith(String(value), "Q") && occursin(r.dischargepoint, String(value)), ks)[1]]
         end
     end
-    BidCurves = Dict(t => [sol[2][el] for el in filter(value -> startswith(String(value), "x") && endswith(String(value), ",$(t)]"), ks)] for t in 1:T)
+    BidCurves = Dict(t => sort([sol[2][el] for el in filter(value -> startswith(String(value), "x") && endswith(String(value), ",$(t)]"), ks)]) for t in 1:T)
     return Qnom, BidCurves
 end
 
@@ -559,14 +559,13 @@ end
 """
 Helper Function to extract solution from ShortTermScheduling Problem.
 """
-function _collect_solution_Short(sol, R::Vector{Reservoir}, j::Participant, T::Int64)::Dict{Reservoir, Float64}
+function _collect_solution_Short(sol, R::Vector{Reservoir}, j::Participant)::Dict{Reservoir, Float64}
     Qnom = Dict{Reservoir, Float64}(r => 0.0 for r in R)
     for r in R
         if j.participationrate[r] > 0.0
-            Qnom[r] = sol.controls[:Q]
+            Qnom[r] = sol.controls[:Qnom][r]
         end
     end
-    println("Nomination: \n", Qnom)
     return Qnom
 end
 
@@ -649,7 +648,7 @@ ________________________________________________________________________________
 function Nonanticipatory_Bidding(
     all_res::Array{Reservoir},
     j::Participant,
-    PPoints::Array{Float64},
+    PPoints::Vector{Vector{Float64}},
     Ω_NA,
     P,
     Qref::Dict{Reservoir, Float64},
@@ -665,27 +664,34 @@ function Nonanticipatory_Bidding(
     stopping_rule = SDDP.BoundStalling(10, 1e-4),
     optimizer = CPLEX.Optimizer,
     DualityHandler = SDDP.ContinuousConicDuality(),
-    lambda = 10)
+    lambda = 15)
     
     K_j = j.plants
     R = collect(filter(r -> j.participationrate[r] > 0.0, all_res))
-    I = length(PPoints) - 1
+    I = length(PPoints[1]) - 1
 
     function subproblem_builder_nonanticipatory(subproblem::Model, node::Int64)
-        @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T], SDDP.State, initial_value=0)
+        # State Variables
         @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = r.currentvolume)
-        @variable(subproblem, lind[r = R], SDDP.State, initial_value = j.individualreservoir[r])
         @variable(subproblem, u_start[k = K_j], SDDP.State, initial_value = 0, Bin)
+        @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= sum(k.equivalent * k.spillreference for k in K_j), SDDP.State, initial_value=0)
+        @variable(subproblem, lind[r = R], SDDP.State, initial_value = j.individualreservoir[r])
         @variable(subproblem, 0 <= Qnom[r = R], SDDP.State, initial_value = 0)
         @variable(subproblem, BALANCE_INDICATOR[r = R], Bin)
         @variable(subproblem, s[r = R] >= 0)
+        @variable(subproblem, a_real)
+        @variable(subproblem, a_ind)
         @constraint(subproblem, increasing[i = 1:I, t=1:T], x[i,t].out <= x[i+1,t].out)
         @constraint(subproblem, balance_ind[r = R], lind[r].out == lind[r].in - (Qnom[r].out - Qref[r])- s[r]) 
         @constraint(subproblem, nbal1[r = R], BALANCE_INDICATOR[r] => {Qnom[r].out <= Qref[r]})
         @constraint(subproblem, nbal2[r = R], !BALANCE_INDICATOR[r] => {0 <= lind[r].in})
         @constraint(subproblem, NoSpill[k = K_j], BALANCE_INDICATOR[k.reservoir] => {sum(Qnom[r_up].out for r_up in find_us_reservoir(k.reservoir)) <= k.spillreference})
+        for c in cuts
+            @constraint(subproblem, a_real <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].in) for r in R))
+            @constraint(subproblem, a_ind <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - lind[r].in) for r in R))
+        end
         if node == 1
-            @stageobjective(subproblem, 0)
+            @stageobjective(subproblem, lambda * (a_real + a_ind))
             @constraint(subproblem, balance_transfer[r = R], l[r].out == l[r].in - Qnom[r].out - s[r]) 
             @constraint(subproblem, start_transfer[k = K_j] , u_start[k].out == u_start[k].in)
         else
@@ -706,14 +712,6 @@ function Nonanticipatory_Bidding(
             @constraint(subproblem, active[t=1:T, k=K_j], w[t,k] <= u[t,k] * k.spillreference * k.equivalent)
             @constraint(subproblem, startup[t=1:T-1, k=K_j], d[t,k] >= u[t+1,k] - u[t,k])
             @constraint(subproblem, production[t=1:T, k=K_j], w[t,k] <= sum(Qreal[t,r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
-            if node == Stages
-                @variable(subproblem, a_real)
-                @variable(subproblem, a_ind)
-                for c in cuts
-                    @constraint(subproblem, a_real <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].in) for r in R))
-                    @constraint(subproblem, a_ind <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - lind[r].in) for r in R))
-                end
-            end
             SDDP.parameterize(subproblem, Ω_NA[node], P[node]) do om
                 # We have to make sure that depending on the market clearing price, the coefficients are set accordingly.
                 # The recourse action only applies to the real delivery, determined by the uncertain price. The other restricitions become inactive, else they make the problem infeasible.
@@ -725,7 +723,7 @@ function Nonanticipatory_Bidding(
                 I_t = Dict(t => 0 for t in 1:T)
                 for t in 1:T
                     for i in 1:I
-                        if (om.price[t] >= PPoints[i]) && (om.price[t] <= PPoints[i+1])
+                        if (om.price[t] >= PPoints[t][i]) && (om.price[t] <= PPoints[t][i+1])
                             I_t[t] = i
                         end
                     end
@@ -740,8 +738,8 @@ function Nonanticipatory_Bidding(
                 for t in 1:T
                     for i in 1:I
                         if (i == I_t[t])
-                            set_normalized_coefficient(clearing[t], x[i,t].in, -((om.price[t] - PPoints[i])/(PPoints[i+1] - PPoints[i])))
-                            set_normalized_coefficient(clearing[t], x[i+1,t].in, -((PPoints[i+1] - om.price[t])/(PPoints[i+1] - PPoints[i])))
+                            set_normalized_coefficient(clearing[t], x[i,t].in, -((om.price[t] - PPoints[t][i])/(PPoints[t][i+1] - PPoints[t][i])))
+                            set_normalized_coefficient(clearing[t], x[i+1,t].in, -((PPoints[t][i+1] - om.price[t])/(PPoints[t][i+1] - PPoints[t][i])))
                         else
                             set_normalized_coefficient(clearing[t], x[i,t].in, 0)
                             set_normalized_coefficient(clearing[t], x[i+1,t].in, 0)
@@ -1048,7 +1046,7 @@ function ShortTermScheduling(
         incoming_state = Dict(Symbol("l[$(r.dischargepoint)]") => r.currentvolume for r in R),
         controls_to_record = [:Qnom],
         )
-    Qnom = _collect_solution_Short(sol_short, R, j, T)
+    Qnom = _collect_solution_Short(sol_short, R, j)
     return Qnom
 end
 
@@ -1109,7 +1107,7 @@ ________________________________________________________________________________
 function SingleOwnerBidding(
     R::Array{Reservoir},
     K::Array{HydropowerPlant},
-    PPoints::Array{Float64},
+    PPoints::Vector{Vector{Float64}},
     Omega,
     P,
     cuts,
@@ -1119,13 +1117,15 @@ function SingleOwnerBidding(
     iteration_count::Int64,
     T::Int64,
     Stages = stages;
+    lambda = 1.0,
     S = 200,
     stopping_rule = [SDDP.BoundStalling(10, 1e-4)],
     printlevel = 1,
-    optimizer = CPLEX.Optimizer)
+    optimizer = CPLEX.Optimizer,
+    deterministic = false)
 
 
-    I = length(PPoints) - 1
+    I = length(PPoints[1]) - 1
 
     function subproblem_builder_single_bidding(subproblem::Model, node::Int64)
         # State Variables
@@ -1134,12 +1134,6 @@ function SingleOwnerBidding(
         @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= sum(k.equivalent * k.spillreference for k in K), SDDP.State, initial_value = 0)
         # Transition Function
         @constraint(subproblem, increasing[i = 1:I, t=1:T], x[i,t].out <= x[i+1,t].out)
-        if node == Stages
-            @variable(subproblem, a)
-            for c in cuts
-                @constraint(subproblem, a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
-            end
-        end
         if node == 1
             # We only concern ourselves with bidding in the first stage.
             @stageobjective(subproblem, 0)
@@ -1147,6 +1141,10 @@ function SingleOwnerBidding(
             @constraint(subproblem, start_transfer[k = K], ustart[k].out == ustart[k].in)
         else
             # Some Constraints and variables such as production specific components only become relevant in stage >= 2
+            @variable(subproblem, a)
+            for c in cuts
+                @constraint(subproblem, a <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
+            end
             @variable(subproblem, y[t = 1:T] >= 0)
             @variable(subproblem, 0 <= Qreal[t = 1:T, r = R])
             @variable(subproblem, 0 <= w[t = 1:T, k = K] <= k.equivalent * k.spillreference)
@@ -1158,7 +1156,7 @@ function SingleOwnerBidding(
             # Random Variables
             @variable(subproblem, f[r = R])
             @constraint(subproblem, clearing[t=1:T], y[t] == sum(1* x[i,t].in +  1* x[i+1,t].in for i in 1:I-1))
-            @constraint(subproblem, balance[r = R], l[r].out == l[r].in - sum(Qreal[t,r] for t in 1:T) + T * f[r] - s[r])
+            @constraint(subproblem, balance[r = R], l[r].out == l[r].in - sum(Qreal[t,r] for t in 1:T) + f[r] - s[r])
             @constraint(subproblem, planttrans1[k = K], ustart[k].in == u[1,k])
             @constraint(subproblem, planttrans2[k = K], ustart[k].out == u[T,k])
             # Constraints
@@ -1175,23 +1173,19 @@ function SingleOwnerBidding(
                 I_t = Dict(t => 0 for t in 1:T)
                 for t in 1:T
                     for i in 1:I
-                        if (om.price[t] >= PPoints[i]) && (om.price[t] <= PPoints[i+1])
+                        if (om.price[t] >= PPoints[t][i]) && (om.price[t] <= PPoints[t][i+1])
                             I_t[t] = i
                         end
                     end
                 end
                 # Parameterize objective through uncertain price
-                if node < Stages
-                    @stageobjective(subproblem, sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t]  - sum(S * d[t,k] for k in K) for t in 1:T))
-                else
-                    @stageobjective(subproblem, sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t]  - sum(S * d[t,k] for k in K) + a for t in 1:T))
-                end
+                @stageobjective(subproblem, sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t]  - sum(S * d[t,k] for k in K) for t in 1:T) + lambda * a)
                     # Fix / Deactivate constraints by setting their coefficients to appropriate values or all zero.
                 for t in 1:T
                     for i in 1:I
                         if (i == I_t[t])
-                            set_normalized_coefficient(clearing[t], x[i,t].in, -((om.price[t] - PPoints[i])/(PPoints[i+1] - PPoints[i])))
-                            set_normalized_coefficient(clearing[t], x[i+1,t].in, -((PPoints[i+1] - om.price[t])/(PPoints[i+1] - PPoints[i])))
+                            set_normalized_coefficient(clearing[t], x[i,t].in, -((om.price[t] - PPoints[t][i])/(PPoints[t][i+1] - PPoints[t][i])))
+                            set_normalized_coefficient(clearing[t], x[i+1,t].in, -((PPoints[t][i+1] - om.price[t])/(PPoints[t][i+1] - PPoints[t][i])))
                         else
                             set_normalized_coefficient(clearing[t], x[i,t].in, 0)
                             set_normalized_coefficient(clearing[t], x[i+1,t].in, 0)
@@ -1202,15 +1196,20 @@ function SingleOwnerBidding(
         end
     end
     model_single_bidding = SDDP.LinearPolicyGraph(subproblem_builder_single_bidding; stages = Stages, sense = :Max,
-    upper_bound = Stages * sum(sum(k.spillreference * k.equivalent for k in K) for t in 1:T for s in 1:Stages) * mu_up, optimizer = optimizer)
-    SDDP.train(model_single_bidding; stopping_rules = stopping_rule, iteration_limit = iteration_count, print_level = printlevel)
-    rule_single_bidding = SDDP.DecisionRule(model_single_bidding; node = 1)
-    sol_single_bidding = SDDP.evaluate(
-        rule_single_bidding;
-        incoming_state = Dict(Symbol("l[$(r.dischargepoint)]") => r.currentvolume for r in R),
-        controls_to_record = [:x],
-    )
-    HourlyBiddingCurve = _collect_solution_Bidding_Single(sol_single_bidding, R, T)
+    upper_bound = 10 *  Stages * sum(sum(k.spillreference * k.equivalent for k in K) for t in 1:T for s in 1:Stages) * mu_up, optimizer = optimizer)
+    if deterministic == true
+        det_equiv = SDDP.deterministic_equivalent(model_single_bidding, optimizer)
+        optimize!(det_equiv)
+        println(value.(x))
+    else
+        SDDP.train(model_single_bidding; stopping_rules = stopping_rule, iteration_limit = iteration_count, print_level = printlevel)
+        rule_single_bidding = SDDP.DecisionRule(model_single_bidding; node = 1)
+        sol_single_bidding = SDDP.evaluate(
+            rule_single_bidding;
+            incoming_state = Dict(Symbol("l[$(r.dischargepoint)]") => r.currentvolume for r in R),
+            controls_to_record = [:x],)
+        HourlyBiddingCurve = _collect_solution_Bidding_Single(sol_single_bidding, R, T)
+    end
     return HourlyBiddingCurve
 end
 
@@ -1228,6 +1227,7 @@ function SingleOwnerScheduling(R::Array{Reservoir},
     iteration_count::Int64,
     T::Int64,
     Stages::Int64;
+    lambda = 1.5,
     S = 200,
     printlevel = 1,
     stopping_rule = [SDDP.BoundStalling(10, 1e-4)],
@@ -1279,7 +1279,7 @@ function SingleOwnerScheduling(R::Array{Reservoir},
                 for r in R
                     JuMP.fix(f[r], om.inflow[r])
                 end
-                @stageobjective(subproblem, sum(om.price[t] * sum(w[t, k] for k in K) - sum(S * d[t, k] for k in K) for t in 1:T) + a)
+                @stageobjective(subproblem, sum(om.price[t] * sum(w[t, k] for k in K) - sum(S * d[t, k] for k in K) for t in 1:T) + lambda * a)
   
             else
                 for r in R
@@ -1513,7 +1513,7 @@ function ReservoirLevelCuts(all_res::Vector{Reservoir}, K::Vector{HydropowerPlan
     R = collect(filter(r -> j.participationrate[r] > 0, all_res))
     weeklyInflow = Dict(r => mean(f[r][(week - 1) * 7 + 1: week * 7]) for r in R) 
     maxGeneration  = Dict(r => max([k.spillreference for k in filter(k -> k.reservoir in  find_ds_reservoirs(r), K)]...) for r in R)
-    reservoircutvalues = Dict(r => min.(max.([r.currentvolume, r.currentvolume - maxGeneration[r] * Stages, r.currentvolume + weeklyInflow[r] * Stages, r.currentvolume + (weeklyInflow[r] - maxGeneration[r]) * Stages, 0], 0), r.maxvolume) for r in R)
+    reservoircutvalues = Dict(r => min.(max.([r.currentvolume, r.currentvolume - maxGeneration[r] * Stages, r.currentvolume + weeklyInflow[r] * Stages, r.currentvolume + (weeklyInflow[r] - maxGeneration[r]) * Stages, 0]), r.maxvolume) for r in R)
     combs = Iterators.product(values(reservoircutvalues)...)
     cuts = vec([Dict(r => v for (r,v) in zip(keys(reservoircutvalues), combo)) for combo in combs])
     return cuts
@@ -1825,23 +1825,25 @@ MarketClearing(price, BiddingCurves, PPoints, J, T)
 
 For a realized price, determine how much each participatn hast to deliver through linear interpolation of their bids.
 """
-function MarketClearing(price::Vector{Float64}, BiddingCurves::Dict{Participant, Dict{Int64, Vector{Float64}}}, PPoints::Vector{Float64}, J::Vector{Participant}, T::Int64)::Dict{Participant, Vector{Float64}}
-    @assert length(PPoints) == length(BiddingCurves[J[3]][1])
-    I = length(PPoints) - 1
+function MarketClearing(price::Vector{Float64}, BiddingCurves::Dict{Participant, Dict{Int64, Vector{Float64}}}, PPoints::Dict{Participant, Vector{Vector{Float64}}}, J::Vector{Participant}, T::Int64)::Dict{Participant, Vector{Float64}}
+    @assert length(PPoints[J[3]][1]) == length(BiddingCurves[J[3]][1])
+    I = Dict(j => length(PPoints[j][1]) - 1 for j in J)
     Obligation = Dict{Participant, Vector{Float64}}(j => [0.0 for i in 1:T] for j in J)
-    I_t = Dict(t => 0 for t in 1:T) # Find index of Price Points where price lies directly above
-    for t in 1:T
-        for i in 1:I
-            if (price[t] >= PPoints[i]) && (price[t] <= PPoints[i+1])
-                I_t[t] = i
+    I_t = Dict(j => Dict(t => 0 for t in 1:T) for j in J) # Find index of Price Points where price lies directly above
+    for j in J
+        for t in 1:T
+            for i in 1:I[j]
+                if (price[t] >= PPoints[j][t][i]) && (price[t] <= PPoints[j][t][i+1])
+                    I_t[j][t] = i
+                end
             end
         end
     end
     for j in J
         for t in 1:T
-            for i in 1:I
-                if (i == I_t[t])
-                    Obligation[j][t] = BiddingCurves[j][t][i] * ((price[t] - PPoints[i])/(PPoints[i+1] - PPoints[i])) + BiddingCurves[j][t][i+1] * ((PPoints[i+1] - price[t])/(PPoints[i+1] - PPoints[i]))
+            for i in 1:I[j]-1
+                if (i == I_t[j][t])
+                    Obligation[j][t] = BiddingCurves[j][t][i] * ((price[t] - PPoints[j][t][i])/(PPoints[j][t][i+1] - PPoints[j][t][i])) + BiddingCurves[j][t][i+1] * ((PPoints[j][t][i+1] - price[t])/(PPoints[j][t][i+1] - PPoints[j][t][i]))
                 end
             end
         end
@@ -1854,13 +1856,13 @@ MarketClearingSolo(price, BiddingCurve, PPoints, T)
 
 For a realized price, determine how much each participatn hast to deliver through linear interpolation of their bids.
 """
-function MarketClearingSolo(price::Vector{Float64}, BiddingCurve, PPoints::Vector{Float64}, T::Int64)::Vector{Float64}
-    I = length(PPoints) - 1
+function MarketClearingSolo(price::Vector{Float64}, BiddingCurve, PPoints::Vector{Vector{Float64}}, T::Int64)::Vector{Float64}
+    I = length(PPoints[1]) - 1
     Obligation = [0.0 for i in 1:T]
     I_t = Dict(t => 0 for t in 1:T) # Find index of Price Points where price lies directly above
     for t in 1:T
         for i in 1:I
-            if (price[t] >= PPoints[i]) && (price[t] <= PPoints[i+1])
+            if (price[t] >= PPoints[t][i]) && (price[t] <= PPoints[t][i+1])
                 I_t[t] = i
             end
         end
@@ -1868,7 +1870,7 @@ function MarketClearingSolo(price::Vector{Float64}, BiddingCurve, PPoints::Vecto
     for t in 1:T
         for i in 1:I
             if (i == I_t[t])
-                Obligation[t] = BiddingCurve[t][i] * ((price[t] - PPoints[i])/(PPoints[i+1] - PPoints[i])) + BiddingCurve[t][i+1] * ((PPoints[i+1] - price[t])/(PPoints[i+1] - PPoints[i]))
+                Obligation[t] = BiddingCurve[t][i] * ((price[t] - PPoints[t][i])/(PPoints[t][i+1] - PPoints[t][i])) + BiddingCurve[t][i+1] * ((PPoints[t][i+1] - price[t])/(PPoints[t][i+1] - PPoints[t][i]))
             end
         end
     end
