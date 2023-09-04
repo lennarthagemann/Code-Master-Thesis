@@ -67,7 +67,7 @@ MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded = ReadMediumModel
 MediumModelSingle = ReadMediumModelSingle(savepath_watervalue, R, K, Ω_medium, P_medium, stage_count_medium, iteration_count_medium)
 Strategy = Dict(j => "Nonanticipatory" for j in J)
 mu_up, mu_down = BalanceParameters(price_data)
-mu_down = 0.0
+
 
 """
     Test_Price_Points()
@@ -111,7 +111,7 @@ function SingleOwnerSimulation(R::Vector{Reservoir}, K::Vector{HydropowerPlant},
     println(PPoints)
     HourlyBiddingCurve = SingleOwnerBidding(R, K, PPoints, Ω, P , cuts, WaterCuts, mu_up, mu_down, iteration_count_bidding, T, stage_count_bidding)
     # price = Price_Scenarios_Short(price_data, 1, stage_count_short)[1][1]
-    price = Ω[stage_count_bidding][1].price
+    price = Ω[stage_count_bidding][rand(1:scenario_count_prices)].price
     inflow = Inflow_Scenarios_Short(inflow_data, currentweek, R, stage_count_short, scenario_count_inflows)[1]
     Obligations = MarketClearingSolo(price,  HourlyBiddingCurve, PPoints, T)
     Qnom, z_up, z_down = SingleOwnerScheduling(R, K, Obligations, price, inflow, Ω, P, cuts, WaterCuts, mu_up, mu_down, iteration_count_short, T, stage_count_short)
@@ -141,12 +141,14 @@ function ExampleSimulation(R::Vector{Reservoir}, J::Vector{Participant}, mu_up, 
 
     HourlyBiddingCurves, Qnoms1, Ω1, PPoints = FirstLayerSimulation(J, R, Strategy, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, iteration_count_short, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices)
     # price = Price_Scenarios_Short(price_data, 1, stage_count_short)[1][1]
-    price = Ω1[J[1]][stage_count_bidding][1].price
+    price = Ω1[J[1]][stage_count_bidding][rand(1:scenario_count_prices)].price
+    inflow = Dict(r => Inflow_Scenarios_Short(inflow_data, currentweek, R, stage_count_short, scenario_count_inflows)[1][r][1] for r in R)
+    println(inflow)
     Obligations = MarketClearing(price, HourlyBiddingCurves, PPoints, J, T)
-    Qadj1, _, P_Swap1, _, _, _ = water_regulation(Qnoms1, Qref, T, false)
+    Qadj1, _, P_Swap1, _, _, _ = water_regulation(Qnoms1, Qref, inflow, false)
 
     Qnoms2 = SecondLayerSimulation(J, R, Qnoms1, Qadj1, Obligations, price, price_data, inflow_data, Qref, cuts,  WaterCuts, iteration_count_short, mu_up, mu_down, T, stage_count_short)
-    Qadj2, _, P_Swap2, _, _, _ = water_regulation(Qnoms2, Qref, T, true)
+    Qadj2, _, P_Swap2, _, _, _ = water_regulation(Qnoms2, Qref, inflow, true)
 
     z_ups, z_downs = ThirdLayerSimulation(J, R, Qadj2, P_Swap2, Obligations, mu_up, mu_down, T)
     return HourlyBiddingCurves, Obligations, Qnoms1, Qadj1, P_Swap1, price, Qnoms2, Qadj2, P_Swap2, z_ups, z_downs
