@@ -549,7 +549,9 @@ function _collect_solution_Bidding(sol, R, j, T)
 end
 
 """
-Helper Function to extract solution from Solo Bidding Problem
+function _collect_solution_Bidding_Single(sol, R::Vector{Reservoir}, T::Int64)
+
+    Helper Function to extract solution from Solo Bidding Problem
 """
 function _collect_solution_Bidding_Single(sol, R::Vector{Reservoir}, T::Int64)
     ks = sort(collect(keys(sol[2])))
@@ -665,7 +667,7 @@ function Nonanticipatory_Bidding(
     stopping_rule = SDDP.BoundStalling(10, 1e-4),
     optimizer = CPLEX.Optimizer,
     DualityHandler = SDDP.ContinuousConicDuality(),
-    lambda = 7.0)
+    lambda = 10.0)
     
     K_j = j.plants
     R = collect(filter(r -> j.participationrate[r] > 0.0, all_res))
@@ -793,7 +795,7 @@ function Anticipatory_Bidding(
     stopping_rule = SDDP.BoundStalling(10, 1e-4),
     optimizer = CPLEX.Optimizer,
     DualityHandler = SDDP.ContinuousConicDuality(),
-    lambda = 7.0)
+    lambda = 10.0)
             
     K_j = j.plants
     O, K_O = OtherParticipant(J, j, all_res)
@@ -945,7 +947,7 @@ function ShortTermScheduling(
     mu_down::Float64,
     T::Int64,
     Stages::Int64;
-    lambda = 7.0,
+    lambda = 10.0,
     S = 200,
     printlevel = 1,
     stopping_rule = [SDDP.BoundStalling(10, 1e-4)],
@@ -1017,13 +1019,7 @@ function ShortTermScheduling(
                 for r in R
                     JuMP.fix(f[r], om.inflow[r], force=true)
                 end
-                if node < Stages
-                    # Include only active variables in stageobjective
-                    @stageobjective(subproblem, sum(om.price[t] * sum(w[t,k] for k in K_j) - S * sum(d[t,k] for k in K_j) for t in 1:T))
-                else
-                    # additionally include Water Value Function
-                    @stageobjective(subproblem, sum(om.price[t] * sum(w[t,k] for k in K_j) - S * sum(d[t,k] for k in K_j) for t in 1:T) + a_real + a_ind)
-                end
+                @stageobjective(subproblem, sum(om.price[t] * sum(w[t,k] for k in K_j) - S * sum(d[t,k] for k in K_j) for t in 1:T) + lambda * (a_real + a_ind))
             end
         end
         return
@@ -1106,6 +1102,7 @@ ________________________________________________________________________________
 
 function SingleOwnerBidding(
     R::Array{Reservoir},
+    Reservoir_Levels::Dict{Reservoir, Float64},
     K::Array{HydropowerPlant},
     PPoints::Vector{Vector{Float64}},
     Omega,
@@ -1129,7 +1126,7 @@ function SingleOwnerBidding(
 
     function subproblem_builder_single_bidding(subproblem::Model, node::Int64)
         # State Variables
-        @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = r.currentvolume)
+        @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = Reservoir_Levels[r])
         @variable(subproblem, ustart[k = K], Bin, SDDP.State, initial_value = 0)
         @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= sum(k.equivalent * k.spillreference for k in K), SDDP.State, initial_value = 0)
         # Transition Function
@@ -1214,6 +1211,7 @@ function SingleOwnerBidding(
 end
 
 function SingleOwnerScheduling(R::Array{Reservoir},
+    Reservoir_Levels::Dict{Reservoir, Float64},
     K::Array{HydropowerPlant},
     y_initial::Vector{Float64},
     price::Vector{Float64},
@@ -1234,7 +1232,7 @@ function SingleOwnerScheduling(R::Array{Reservoir},
     optimizer = CPLEX.Optimizer)
     function subproblem_builder_single_short(subproblem::Model, node::Int64)
         # State Variables
-        @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = r.currentvolume)
+        @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = Reservoir_Levels[r])
         @variable(subproblem, ustart[k = K], Bin, SDDP.State, initial_value = 0)
         # Control Variables
         @variable(subproblem, y[t = 1:T])
@@ -1680,15 +1678,23 @@ function Price_Scenarios_Short(price_data::DataFrame, n::Int64, S::Int64 = stage
 end
 
 """
-    Create_Price_Points(price_data, n)
+    Create_Price_Points(Ω, scenario_count_prices, T, max_point)
 
-    Based on historical hourly price data price_data, create n+2 Price Points to be used as reference.
-    The first and last Price Points are Technical Parameters [MIN_PRICE, ... ,MAX_PRICE] so that all Bids are
-    within technical limits of NordPool.
-    The middle Price Points are chosen based on density of prices (Quantiles)
+    Create Price Points based on the Scenarios generated. Through this approach, a scenario lies between every price point.
+    For every hour, get the corresponding price curve.
 """
-function Create_Price_Points(price_data::DataFrame, n::Int64; quantile_bounds = 0.05)::Vector{Float64}
-    return [0, quantile(price_data.Average, range(quantile_bounds, 1 - quantile_bounds, length = n))..., 440]
+function Create_Price_Points(Ω, scenario_count_prices::Int64, T::Int64, max_point::Float64)::Vector{Vector{Float64}}
+    if scenario_count_prices == 1
+        PPoints = [[0.0, max_point] for t in 1:T]
+    else
+        PPoints = []
+        for t in 1:T
+            hourly_prices = sort(scen.price[t] for scen in Ω[2])
+            temp = [(hourly_prices[i] + hourly_prices[i+1])/2 for i in 1:length(hourly_prices)-1]
+            push!(PPoints, [0.0, temp..., max_point])
+        end
+    end
+    return PPoints
 end
 
 """
