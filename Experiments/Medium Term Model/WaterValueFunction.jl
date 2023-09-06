@@ -32,7 +32,7 @@ const stage_count_medium = 52
 const stage_count_short = 2
 const scenario_count_prices_medium = 3
 const scenario_count_inflows_weekly = 3
-const iterations_medium = 1000
+const iterations_medium = 1500
 const week = 2
 
 price_data = prepare_pricedata(filepath_prices)
@@ -51,7 +51,6 @@ function saveWaterValuesParticipants(J, R, price_data, inflow_data, savepath_wat
     end
 end
 
-saveWaterValuesParticipants(J, R, price_data, inflow_data, savepath_watervalue; scenario_count_prices_medium, scenario_count_inflows_weekly, ColumnReservoir, stage_count_medium, iterations_medium)
 
 function SaveWaterValuesSolo(R, K, inflow_data, price_data, Stages, iterations, savepath_watervalue)
     PriceScenariosMedium = Price_Scenarios_Medium(price_data, scenario_count_prices_medium)
@@ -61,7 +60,10 @@ function SaveWaterValuesSolo(R, K, inflow_data, price_data, Stages, iterations, 
     SDDP.write_cuts_to_file(model_medium, savepath_watervalue)
 end
 
-# SaveWaterValuesSolo(R, K, inflow_data, price_data, stage_count_medium, iterations_medium, savepath_watervalue * "\\SingleOwner\\MediumModel.json")
+saveWaterValuesParticipants(J, R, price_data, inflow_data, savepath_watervalue; scenario_count_prices_medium, scenario_count_inflows_weekly, ColumnReservoir, stage_count_medium, iterations_medium)
+SaveWaterValuesSolo(R, K, inflow_data, price_data, stage_count_medium, iterations_medium, savepath_watervalue * "\\SingleOwner\\MediumModel.json")
+
+
 cuts_j = Dict(j => ReservoirLevelCuts(R, j.plants, j, f, week, 7) for j in J)
 Others = Dict(j => OtherParticipant(J,j,R)[1] for j in J)
 cutsOther = Dict(j => ReservoirLevelCuts(R, Others[j].plants, Others[j], f, week, stage_count_short) for j in J)
@@ -69,17 +71,17 @@ WaterCuts = Dict(j => WaterValueCuts(R, j, MediumModelDictionary_j[j], cuts_j[j]
 WaterCutsOther = Dict(j => WaterValueCuts(R, Others[j], MediumModelDictionary_O[j], cutsOther[j], week) for j in J)
 
 
-V_j = Dict(j => SDDP.ValueFunction(MediumModelDictionary_j[j]; node = 52) for j in J)
-bounds_1 = LinRange(0.0, R[1].currentvolume, 100)
-bounds_2 = LinRange(0.0, R[2].currentvolume, 100)
-WV(x, y) = SDDP.evaluate(V_j[J[2]], Dict(Symbol("l[Holsmjon]") => y, Symbol("l[Flasjon]") => x))[1]
-surface(bounds_1, bounds_2, WV, legend = false)
+# V_j = Dict(j => SDDP.ValueFunction(MediumModelDictionary_j[j]; node = 52) for j in J)
+# bounds_1 = LinRange(0.0, R[1].currentvolume, 100)
+# bounds_2 = LinRange(0.0, R[2].currentvolume, 100)
+# WV(x, y) = SDDP.evaluate(V_j[J[2]], Dict(Symbol("l[Holsmjon]") => y, Symbol("l[Flasjon]") => x))[1]
+# surface(bounds_1, bounds_2, WV, legend = false)
 
-g(x) = SDDP.evaluate(V_j, (Symbol("l[Holsmjon]") => x, Symbol("l[Flasjon]") => 0))[1]
-h(x) = SDDP.evaluate(V_j, (Symbol("l[Holsmjon]") => 0, Symbol("l[Flasjon]") => x))[1]
+# g(x) = SDDP.evaluate(V_j, (Symbol("l[Holsmjon]") => x, Symbol("l[Flasjon]") => 0))[1]
+# h(x) = SDDP.evaluate(V_j, (Symbol("l[Holsmjon]") => 0, Symbol("l[Flasjon]") => x))[1]
 
-Plots.plot([bounds_1, bounds_2], [g, h],
-    xlabel = "Reservoir Level", ylabel = "Objective Value", legend=false, layout = (1, 2), size= (1000,600), show=true)
+# Plots.plot([bounds_1, bounds_2], [g, h],
+#     xlabel = "Reservoir Level", ylabel = "Objective Value", legend=false, layout = (1, 2), size= (1000,600), show=true)
 
 cuts = 5
 ReservoirValues = Dict(r => collect(range(0, r.maxvolume, length=cuts))  for r in R)

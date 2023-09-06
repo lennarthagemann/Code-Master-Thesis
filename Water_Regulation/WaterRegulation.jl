@@ -11,7 +11,7 @@ using DataFrames
 using CSV
 using Dates
 using Distributions
-export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir, update_ind_reservoir, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, ShortTermScheduling, RealTimeBalancing, MediumTermModel, SingleOwnerMediumTermModel, SingleOwnerBidding, SingleOwnerScheduling, WaterValueCuts, WaterValueCutsSingle, prepare_pricedata, prepare_inflowdata, Inflow_Scenarios_Short, Inflow_Scenarios_Medium, Price_Scenarios_Medium, BalanceParameters, Price_Scenarios_Short, Create_Price_Points, create_Ω_Nonanticipatory, create_Ω_Anticipatory, create_Ω_medium, ReservoirLevelCuts, ReservoirLevelCutsSingle, CalculateReferenceFlow, AverageReservoirLevel, MediumModelsAllParticipants, SaveMediumModel, ReadMediumModel, ReadMediumModelSingle, MarketClearing, MarketClearingSolo, OthersNomination, Final_Revenue
+export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir!, update_ind_reservoir!, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, ShortTermScheduling, RealTimeBalancing, MediumTermModel, SingleOwnerMediumTermModel, SingleOwnerBidding, SingleOwnerScheduling, WaterValueCuts, WaterValueCutsSingle, prepare_pricedata, prepare_inflowdata, Inflow_Scenarios_Short, Inflow_Scenarios_Medium, Price_Scenarios_Medium, BalanceParameters, Price_Scenarios_Short, Create_Price_Points, create_Ω_Nonanticipatory, create_Ω_Anticipatory, create_Ω_medium, ReservoirLevelCuts, ReservoirLevelCutsSingle, CalculateReferenceFlow, AverageReservoirLevel, MediumModelsAllParticipants, SaveMediumModel, ReadMediumModel, ReadMediumModelSingle, MarketClearing, MarketClearingSolo, OthersNomination, Final_Revenue, Final_Revenue_Solo
  
 mutable struct Reservoir
     dischargepoint::String
@@ -253,7 +253,7 @@ end
 Update the real (!) reservoir volume after adjustment of flow.
 Subtract the adjusted flow and add inflow to the balance
 """
-function update_reservoir(Qadj::Dict{Reservoir, Float64}, f::Dict{Reservoir, Float64}; round_decimal_places = 5)
+function update_reservoir!(Qadj::Dict{Reservoir, Float64}, f::Dict{Reservoir, Float64}; round_decimal_places = 5)
    for (d, adj) in Qadj
         d.currentvolume = d.currentvolume - adj + f[d] 
     end
@@ -264,7 +264,7 @@ Update the individual reservoir by updating the balance of every participant thr
 Every participant has a field balance, it is the updated by the difference of nomination value and reference flow at every reservoir.
 (Times 24, as it is done for the entire day)
 """
-function update_ind_reservoir(Qnom::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}, Qref::Dict{Reservoir, Float64})
+function update_ind_reservoir!(Qnom::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}, Qref::Dict{Reservoir, Float64})
     for (nom, value) in Qnom
         if haskey(nom.participant.individualreservoir, nom.reservoir)
             nom.participant.individualreservoir[nom.reservoir] += (Qref[nom.reservoir] - value)
@@ -497,8 +497,8 @@ function water_regulation(Qnom::Dict{NamedTuple{(:participant, :reservoir), Tupl
     POver, ΣPOver = Calculate_POver(Qnom, QnomTot, Qmax)
     P_Swap = power_swap(Qnom, Qadj, POver, ΣPOver, MaxEnergy, parts)
     if update_res == true
-        update_reservoir(Qadj, f)
-        update_ind_reservoir(Qnom, Qref)
+        update_reservoir!(Qadj, f)
+        update_ind_reservoir!(Qnom, Qref)
     end
     # Total_Power = total_power(Qadj_All, P_Swap)
     return Qadj, QadjTot, P_Swap, POver, ΣPOver, MaxEnergy
@@ -665,7 +665,7 @@ function Nonanticipatory_Bidding(
     stopping_rule = SDDP.BoundStalling(10, 1e-4),
     optimizer = CPLEX.Optimizer,
     DualityHandler = SDDP.ContinuousConicDuality(),
-    lambda = 15)
+    lambda = 7.0)
     
     K_j = j.plants
     R = collect(filter(r -> j.participationrate[r] > 0.0, all_res))
@@ -777,7 +777,7 @@ function Anticipatory_Bidding(
     all_res::Array{Reservoir},
     j::Participant,
     J::Vector{Participant},
-    PPoints::Array{Float64},
+    PPoints::Vector{Vector{Float64}},
     Ω_A,
     P,
     Qref::Dict{Reservoir, Float64},
@@ -792,66 +792,69 @@ function Anticipatory_Bidding(
     printlevel = 1,
     stopping_rule = SDDP.BoundStalling(10, 1e-4),
     optimizer = CPLEX.Optimizer,
-    DualityHandler = SDDP.ContinuousConicDuality())
+    DualityHandler = SDDP.ContinuousConicDuality(),
+    lambda = 7.0)
             
     K_j = j.plants
     O, K_O = OtherParticipant(J, j, all_res)
     R = collect(filter(r -> j.participationrate[r] > 0, all_res))
     R_O = collect(filter(r -> !(r in R), all_res))
-    I = length(PPoints) - 1
+    K = vcat(K_j, K_O)
+    I = length(PPoints[1]) - 1
 
     function subproblem_builder_anticipatory(subproblem::Model, node::Int64)
-        @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= sum(k.equivalent * k.spillreference for k in K_j), SDDP.State, initial_value=0)
         @variable(subproblem, 0 <= l[r = all_res] <= r.maxvolume, SDDP.State, initial_value = r.currentvolume)
-        @variable(subproblem, lind[r = R], SDDP.State, initial_value = r.currentvolume)
         @variable(subproblem, u_start[k = K_j], SDDP.State, initial_value = 0, Bin)
-        @variable(subproblem, 0 <= Qnom[r = R] <= max([k.spillreference for k in filter(k -> k.reservoir in find_ds_reservoirs(r), vcat(K_j,))]...), SDDP.State, initial_value = 0)
+        @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= sum(k.equivalent * k.spillreference for k in K_j), SDDP.State, initial_value=0)
+        @variable(subproblem, lind[r = R], SDDP.State, initial_value = j.individualreservoir[r])
+        # @variable(subproblem, 0 <= Qnom[r = R] <= max([k.spillreference for k in filter(k -> k.reservoir in find_ds_reservoirs(r), vcat(K_j,))]...), SDDP.State, initial_value = 0)
+        @variable(subproblem, 0 <= Qnom[r = R], SDDP.State, initial_value = 0)
         @variable(subproblem, BALANCE_INDICATOR[r = R], Bin)
         @variable(subproblem, s[r = all_res] >= 0)
-        
+        @variable(subproblem, a_real)
+        @variable(subproblem, a_ind)
+
         @constraint(subproblem, increasing[i = 1:I, t=1:T], x[i,t].out <= x[i+1,t].out)
         @constraint(subproblem, balance_ind[r = R], lind[r].out == lind[r].in - (Qnom[r].out - Qref[r])- s[r]) 
         @constraint(subproblem, nbal1[r = R], BALANCE_INDICATOR[r] => {Qnom[r].out <= Qref[r]})
         @constraint(subproblem, nbal2[r = R], !BALANCE_INDICATOR[r] => {0 <= lind[r].in})
         @constraint(subproblem, NoSpill[k = K_j], BALANCE_INDICATOR[k.reservoir] => {sum(Qnom[r_up].out for r_up in find_us_reservoir(k.reservoir)) <= k.spillreference})
+        for c in cuts
+            @constraint(subproblem, a_real <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
+            @constraint(subproblem, a_ind <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - lind[r].out) for r in R))
+        end
         if node == 1
+            # @stageobjective(subproblem, lambda * (a_real + a_ind))
             @stageobjective(subproblem, 0)
-            @constraint(subproblem, balance_transfer[r = R], l[r].out == l[r].in - Qnom[r].out - s[r])
-            
+            @constraint(subproblem, balance_transfer[r = all_res], l[r].out == l[r].in)# - Qnom[r].out - s[r])
+            @constraint(subproblem, start_transfer[k = K_j], u_start[k].out == u_start[k].in)
         else
-            @variable(subproblem, y[t=1:T] >= 0)
-            @variable(subproblem, d[t=1:T, k = K_j], Bin)
-            @variable(subproblem, u[t=1:T, k = K_j], Bin)
             @variable(subproblem, 0 <= w[t=1:T, k = K_j] <= k.equivalent * k.spillreference)
             @variable(subproblem, z_up[t=1:T] >= 0)
             @variable(subproblem, z_down[t=1:T] >= 0)
             @variable(subproblem, 0 <= Qreal[t=1:T, r = R])
-            @variable(subproblem, 0 <= Qadj[r = all_res])
-            @variable(subproblem, Pswap[r = R])
-            @variable(subproblem, Pover[k = K_O] >= 0)
             @variable(subproblem, f[r = all_res] >= 0)
-            @constraint(subproblem, balance[r = all_res], l[r].out == l[r].in - Qadj[r] + f[r] - s[r])
+            @variable(subproblem, y[t=1:T] >= 0)
+            @variable(subproblem, d[t=1:T, k = K_j], Bin)
+            @variable(subproblem, u[t=1:T, k = K_j], Bin)
+            @variable(subproblem, 0 <= Qadj[r = all_res])
+            @variable(subproblem, Pswap[r = all_res])
+            @variable(subproblem, Pover[k = K_O] >= 0)
+            @variable(subproblem, relax[r = R_O])
+            @constraint(subproblem, balance[r = R], l[r].out == l[r].in - Qadj[r] + f[r] - s[r])
             @constraint(subproblem, startcond[k = K_j], u_start[k].in == u[1,k])
             @constraint(subproblem, endcond[k = K_j], u_start[k].out == u[T,k])
             @constraint(subproblem, clearing[t=1:T], y[t] == sum(1* x[i,t].in +  1* x[i+1,t].in for i in 1:I))
             @constraint(subproblem, nomination[r = R], sum(Qreal[t,r] for t in 1:T) == T * Qadj[r])
-            @constraint(subproblem, obligation[t=1:T], y[t] - sum(Pswap[r] for r in R) == sum(w[t,k] for k in K_j) + z_up[t] - z_down[t])
+            @constraint(subproblem, obligation[t=1:T], y[t] - sum(Pswap[r] for r in vcat(R, R_O)) == sum(w[t,k] for k in K_j) + z_up[t] - z_down[t])
             @constraint(subproblem, active[t=1:T, k=K_j], w[t,k] <= u[t,k] * k.spillreference * k.equivalent)
             @constraint(subproblem, startup[t=1:T-1, k=K_j], d[t,k] >= u[t+1,k] - u[t,k])
             @constraint(subproblem, production[t=1:T, k=K_j], w[t,k] <= sum(Qreal[t,r] for r in find_us_reservoir(k.reservoir)) * k.equivalent)
             @constraint(subproblem, adjustedflow[r = R], (j.participationrate[r] + O.participationrate[r]) * Qadj[r] - Qnom[r].in * j.participationrate[r] ==  O.participationrate[r])
             @constraint(subproblem, adjustedflowOther[r = R_O], Qadj[r] == 0.0)    
-            @constraint(subproblem, powerswap[r = R], Pswap[r] == j.participationrate[r] * (Qnom[r].in - Qadj[r]) - sum(Pover[k] for k in filter(x -> x.reservoir == r, K_O)))
+            @constraint(subproblem, powerswap[r = R], Pswap[r] == j.participationrate[r] * (Qnom[r].in - Qadj[r])- sum(Pover[k] for k in filter(x -> x.reservoir == r, K_O)))
             @constraint(subproblem, powerswapOther[r = R_O], Pswap[r] == -sum(Pover[k] for k in filter(x -> x.reservoir == r, K_O)))
             @constraint(subproblem, overnomination[k = K_O], Pover[k] >= k.equivalent * (sum(Qadj[r] for r in find_us_reservoir(k.reservoir)) - k.spillreference))
-            if node == Stages
-                @variable(subproblem, a_real)
-                @variable(subproblem, a_ind)
-                for c in cuts
-                    @constraint(subproblem, a_real <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - l[r].out) for r in R))
-                    @constraint(subproblem, a_ind <= WaterCuts[c].e1 - sum(WaterCuts[c].e2[Symbol("l[$(r)]")] *(c[r] - lind[r].out) for r in R))
-                end
-            end
             SDDP.parameterize(subproblem, Ω_A[node], P[node]) do om
                 # We have to make sure that depending on the market clearing price, the coefficients are set accordingly.
                 # The recourse action only applies to the real delivery, determined by the uncertain price. The other restricitions become inactive, else they make the problem infeasible.
@@ -864,29 +867,25 @@ function Anticipatory_Bidding(
                 end
                 for r in R_O
                     JuMP.set_normalized_rhs(adjustedflowOther[r], om.nomination[r])
-                    @constraint(subproblem, l[r].out == l[r].in - om.nomination[r] - s[r]) 
+                    @constraint(subproblem, l[r].out == l[r].in + f[r] - s[r]) 
                 end
                 # Define Set of active variables for each hour
                 I_t = Dict(t => 0 for t in 1:T)
                 for t in 1:T
                     for i in 1:I
-                        if (om.price[t] >= PPoints[i]) && (om.price[t] <= PPoints[i+1])
+                        if (om.price[t] >= PPoints[t][i]) && (om.price[t] <= PPoints[t][i+1])
                             I_t[t] = i
                         end
                     end
                 end
                 # Include only active variables in stageobjective
-                if node < Stages
-                    @stageobjective(subproblem ,sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t]  - S * sum(d[t,k] for k in K_j) for t in 1:T))
-                else
-                    @stageobjective(subproblem ,sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t]  - S * sum(d[t,k] for k in K_j) for t in 1:T) + ( a_real + a_ind))
-                end
+                @stageobjective(subproblem ,sum(om.price[t] * y[t] -  mu_up * z_up[t] + mu_down * z_down[t]  - S * sum(d[t,k] for k in K_j) for t in 1:T) + lambda * (a_real + a_ind))
                 # Fix / Deactivate constraints by setting their coefficients to appropriate values or all zero.
                 for t in 1:T
                     for i in 1:I
                         if (i == I_t[t])
-                            set_normalized_coefficient(clearing[t], x[i,t].in, -((om.price[t] - PPoints[i])/(PPoints[i+1] - PPoints[i])))
-                            set_normalized_coefficient(clearing[t], x[i+1,t].in, -((PPoints[i+1] - om.price[t])/(PPoints[i+1] - PPoints[i])))
+                            set_normalized_coefficient(clearing[t], x[i,t].in, -((om.price[t] - PPoints[t][i])/(PPoints[t][i+1] - PPoints[t][i])))
+                            set_normalized_coefficient(clearing[t], x[i+1,t].in, -((PPoints[t][i+1] - om.price[t])/(PPoints[t][i+1] - PPoints[t][i])))
                         else
                             set_normalized_coefficient(clearing[t], x[i,t].in, 0)
                             set_normalized_coefficient(clearing[t], x[i+1,t].in, 0)
@@ -902,7 +901,7 @@ function Anticipatory_Bidding(
         subproblem_builder_anticipatory;
         stages = Stages,
         sense = :Max,
-        upper_bound = sum(k.equivalent for k in K_j) * sum(r.maxvolume for r in R) * mu_up * Stages,
+        upper_bound = sum(k.equivalent for k in K_j) * sum(r.maxvolume for r in R) * mu_up * Stages * lambda,
         optimizer = optimizer
         )
         
@@ -946,7 +945,7 @@ function ShortTermScheduling(
     mu_down::Float64,
     T::Int64,
     Stages::Int64;
-    lambda = 2.0,
+    lambda = 7.0,
     S = 200,
     printlevel = 1,
     stopping_rule = [SDDP.BoundStalling(10, 1e-4)],
@@ -1034,7 +1033,7 @@ function ShortTermScheduling(
         subproblem_builder_short,
         stages = Stages,
         sense = :Max,
-        upper_bound = sum(r.maxvolume for r in R) * sum(k.equivalent for k in K_j) * mu_up * T * Stages,
+        upper_bound = sum(r.maxvolume for r in R) * sum(k.equivalent for k in K_j) * mu_up * T * Stages * lambda,
         optimizer = optimizer
         )   
         
@@ -1283,7 +1282,7 @@ function SingleOwnerScheduling(R::Array{Reservoir},
         end
     end
     model_single_short = SDDP.LinearPolicyGraph(subproblem_builder_single_short;
-    stages = Stages, sense = :Max, upper_bound = Stages * T * sum(k.spillreference * k.equivalent for k in K) * mu_up, optimizer = optimizer)
+    stages = Stages, sense = :Max, upper_bound = Stages * T * sum(k.spillreference * k.equivalent for k in K) * mu_up * lambda, optimizer = optimizer)
 
     SDDP.train(model_single_short; iteration_limit = iteration_count, stopping_rules = stopping_rule, print_level = printlevel)
 
@@ -1832,9 +1831,10 @@ function MarketClearing(price::Vector{Float64}, BiddingCurves::Dict{Participant,
             end
         end
     end
+    println("I_t: ", I_t)
     for j in J
         for t in 1:T
-            for i in 1:I[j]-1
+            for i in 1:I[j]
                 if (i == I_t[j][t])
                     Obligation[j][t] = BiddingCurves[j][t][i] * ((price[t] - PPoints[j][t][i])/(PPoints[j][t][i+1] - PPoints[j][t][i])) + BiddingCurves[j][t][i+1] * ((PPoints[j][t][i+1] - price[t])/(PPoints[j][t][i+1] - PPoints[j][t][i]))
                 end
@@ -1884,6 +1884,16 @@ function Final_Revenue(J::Vector{Participant}, price::Vector{Float64}, Obligatio
     return revenue
 end
 
+
+"""
+    Final_Revenue_Solo(price, Obligations, z_ups, z_downs, mu_up, mu_down, T)
+    
+    Calculate the daily revenues generated by the entire river system
+"""
+
+function Final_Revenue_Solo(price::Vector{Float64}, Obligation::Vector{Float64}, z_up::Vector{Float64}, z_down::Vector{Float64}, mu_up::Float64, mu_down::Float64, T::Int64)::Float64
+    return sum(price[t] * Obligation[t] - z_up[t] * mu_up + z_down[t] * mu_down for t in 1:T)
+end
 
 end
 

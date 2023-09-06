@@ -43,7 +43,7 @@ R, K, J = read_data(filepath_Ljungan)
 
 const ColumnReservoir = Dict(r => r.dischargepoint * " Inflow" for r in R)
 const scenario_count_inflows = 1
-const scenario_count_prices = 5
+const scenario_count_prices = 10
 const scenario_count_prices_medium = 3
 const scenario_count_inflows_weekly = 3
 const stage_count_short = 2
@@ -65,7 +65,7 @@ InflowScenariosMedium = Inflow_Scenarios_Medium(inflow_data, ColumnReservoir, sc
 Ω_medium, P_medium =  create_Ω_medium(PriceScenariosMedium, InflowScenariosMedium, R);
 MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded = ReadMediumModel(savepath_watervalue, J, R, Ω_medium, P_medium, stage_count_medium, iteration_count_medium)
 MediumModelSingle = ReadMediumModelSingle(savepath_watervalue, R, K, Ω_medium, P_medium, stage_count_medium, iteration_count_medium)
-Strategy = Dict(j => "Nonanticipatory" for j in J)
+Strategy = Dict(j => "Anticipatory" for j in J)
 mu_up, mu_down = BalanceParameters(price_data)
 
 
@@ -108,17 +108,17 @@ function SingleOwnerSimulation(R::Vector{Reservoir}, K::Vector{HydropowerPlant},
     WaterCuts = WaterValueCutsSingle(R, MediumModelSingle, cuts, currentweek)
     Ω, P, _, _= create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, R, stage_count_bidding)
     PPoints = Test_Price_Points(Ω, scenario_count_prices, T, mu_up)
-    println(PPoints)
     HourlyBiddingCurve = SingleOwnerBidding(R, K, PPoints, Ω, P , cuts, WaterCuts, mu_up, mu_down, iteration_count_bidding, T, stage_count_bidding)
     # price = Price_Scenarios_Short(price_data, 1, stage_count_short)[1][1]
     price = Ω[stage_count_bidding][rand(1:scenario_count_prices)].price
     inflow = Inflow_Scenarios_Short(inflow_data, currentweek, R, stage_count_short, scenario_count_inflows)[1]
     Obligations = MarketClearingSolo(price,  HourlyBiddingCurve, PPoints, T)
     Qnom, z_up, z_down = SingleOwnerScheduling(R, K, Obligations, price, inflow, Ω, P, cuts, WaterCuts, mu_up, mu_down, iteration_count_short, T, stage_count_short)
+    println("current reservoir: $([(r.dischargepoint, r.currentvolume) for r in R])")
+    update_reservoir!(Qnom, Dict(r => inflow[r][1] for r in R))
+    println("after operation: $([(r.dischargepoint, r.currentvolume) for r in R])")
     return HourlyBiddingCurve, Obligations, price, Qnom, z_up, z_down
 end
-
-HourlyBiddingCurve, Obligation, price, Qnom, z_up, z_down = SingleOwnerSimulation(R, K, mu_up, mu_down, inflow_data, price_data, MediumModelSingle, currentweek, price_point_count, iteration_count_Bidding, T, stage_count_bidding, stage_count_short, scenario_count_prices, scenario_count_inflows)
 
 """
 Simulate The Entire Procedure for one week, and obtain the solution afterwards. We are interested in
@@ -172,6 +172,7 @@ function FirstLayerSimulation(J::Vector{Participant}, all_res::Vector{Reservoir}
         R = collect(filter(r -> j.participationrate[r] > 0.0, all_res))
         Ω_NA_local, P_NA_local, Ω_scenario_local, P_scenario_local = create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, all_res, stage_count_bidding)
         PPoints[j] = Test_Price_Points(Ω_NA_local, scenario_count_prices, T, mu_up)
+        println(PPoints)
         if Strategy[j] == "Nonanticipatory"
             Qnom, HourlyBiddingCurve = Nonanticipatory_Bidding(R, j, PPoints[j], Ω_NA_local, P_NA_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding)
             HourlyBiddingCurves[j] = HourlyBiddingCurve
@@ -245,6 +246,11 @@ function ThirdLayerSimulation(J, R, Qadj2, P_Swap2, Obligations, mu_up, mu_down,
     return z_ups, z_downs
 end
 
-HourlyBiddingCurves, Obligations, Qnoms1, Qadj1, P_Swap1, price, Qnoms2, Qadj2, P_Swap2, z_ups, z_downs = ExampleSimulation(R, J, mu_up, mu_down,inflow_data, price_data, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, currentweek, scenario_count_prices)
+# HourlyBiddingCurves, Obligations, Qnoms1, Qadj1, P_Swap1, price, Qnoms2, Qadj2, P_Swap2, z_ups, z_downs = ExampleSimulation(R, J, mu_up, mu_down,inflow_data, price_data, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, currentweek, scenario_count_prices)
 
-Final_Revenue(J, price, Obligations, z_ups, z_downs, mu_up, mu_down, T)
+HourlyBiddingCurve, Obligation, price_solo, Qnom, z_up, z_down = SingleOwnerSimulation(R, K, mu_up, mu_down, inflow_data, price_data, MediumModelSingle, currentweek, price_point_count, iteration_count_Bidding, T, stage_count_bidding, stage_count_short, scenario_count_prices, scenario_count_inflows)
+
+
+
+# Final_Revenue(J, price, Obligations, z_ups, z_downs, mu_up, mu_down, T)
+Final_Revenue_Solo(price_solo, Obligation, z_up, z_down, mu_up, mu_down, T)
