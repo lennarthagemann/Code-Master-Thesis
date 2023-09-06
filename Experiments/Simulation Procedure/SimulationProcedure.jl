@@ -70,30 +70,6 @@ mu_up, mu_down = BalanceParameters(price_data)
 
 
 """
-    Test_Price_Points()
-
-    Create Price Points fitting to the scenarios generated.
-    It is important to have a bidding curve fitting to all scenarios generated. Between every price point at least one scenario has to situated.
-    Otherwise, the agent is indifferent to the volume to nominate at that point and a realized price would be detrimental.
-    For every hour
-
-"""
-function Test_Price_Points(Ω, scenario_count_prices, T, max_point)::Vector{Vector{Float64}}
-    if scenario_count_prices == 1
-        PPoints = [[0.0, max_point] for t in 1:T]
-    else
-        PPoints = []
-        for t in 1:T
-            hourly_prices = sort(scen.price[t] for scen in Ω[2])
-            temp = [(hourly_prices[i] + hourly_prices[i+1])/2 for i in 1:length(hourly_prices)-1]
-            push!(PPoints, [0.0, temp..., max_point])
-        end
-    end
-    return PPoints
-end
-
-
-"""
     SingleOwnerSimulation(R, K, price_data, inflow_data, cuts, WaterCuts, PPoints, iteration_count, mu_up, mu_down, T, stage_count_bidding)
 
     Simulate the Bidding and Subsequent Short Term Optimization for the Single Owner Model.
@@ -246,11 +222,10 @@ function ThirdLayerSimulation(J, R, Qadj2, P_Swap2, Obligations, mu_up, mu_down,
     return z_ups, z_downs
 end
 
-# HourlyBiddingCurves, Obligations, Qnoms1, Qadj1, P_Swap1, price, Qnoms2, Qadj2, P_Swap2, z_ups, z_downs = ExampleSimulation(R, J, mu_up, mu_down,inflow_data, price_data, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, currentweek, scenario_count_prices)
-
+HourlyBiddingCurves, Obligations, Qnoms1, Qadj1, P_Swap1, price, Qnoms2, Qadj2, P_Swap2, z_ups, z_downs = ExampleSimulation(R, J, mu_up, mu_down,inflow_data, price_data, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, currentweek, scenario_count_prices)
 HourlyBiddingCurve, Obligation, price_solo, Qnom, z_up, z_down = SingleOwnerSimulation(R, K, mu_up, mu_down, inflow_data, price_data, MediumModelSingle, currentweek, price_point_count, iteration_count_Bidding, T, stage_count_bidding, stage_count_short, scenario_count_prices, scenario_count_inflows)
 
 
 
-# Final_Revenue(J, price, Obligations, z_ups, z_downs, mu_up, mu_down, T)
+Final_Revenue(J, price, Obligations, z_ups, z_downs, mu_up, mu_down, T)
 Final_Revenue_Solo(price_solo, Obligation, z_up, z_down, mu_up, mu_down, T)
