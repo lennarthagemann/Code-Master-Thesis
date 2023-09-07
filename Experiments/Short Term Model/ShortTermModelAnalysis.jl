@@ -65,12 +65,22 @@ mu_up, mu_down = BalanceParameters(price_data)
 
 
 """
-function create_Qadjs()
+function create_Qadjs(R, K, count)
 
     Helper Function to decide what kind of adjusted flow are to be used in the ShortTerScheduling Analysis.
+    count gives the amount of different nominations to run through the short term scheduling
 """
-function create_Qadjs(R::Vector{Reservoir})::Vector{Dict{Reservoir, Float64}}
-    
+function create_Qadjs(R::Vector{Reservoir}, K::Vector{HydropowerPlant}, count::Int64)::Vector{Dict{Reservoir, Float64}}
+    Qadjs = Dict{Reservoir, Float64}[]
+    for r in R
+        max_flow = max([k.spillreference for k in filter(p -> p.reservoir in find_ds_reservoir(r) ,K)]...)
+    end
+    Qadj = Dict{Reservoir, Float64}(r => 0.0 for r in R)
+    vals = [c * 1/counts * max_flow for c in 1:counts]
+    for r in R
+        Q[]
+    end
+    push!(Qadjs, Qadj)
     return Qadjs
 end
 
