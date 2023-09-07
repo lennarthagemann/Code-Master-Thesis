@@ -11,7 +11,7 @@ using DataFrames
 using CSV
 using Dates
 using Distributions
-export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir!, update_ind_reservoir!, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, ShortTermScheduling, RealTimeBalancing, MediumTermModel, SingleOwnerMediumTermModel, SingleOwnerBidding, SingleOwnerScheduling, WaterValueCuts, WaterValueCutsSingle, prepare_pricedata, prepare_inflowdata, Inflow_Scenarios_Short, Inflow_Scenarios_Medium, Price_Scenarios_Medium, BalanceParameters, Price_Scenarios_Short, Create_Price_Points, create_Ω_Nonanticipatory, create_Ω_Anticipatory, create_Ω_medium, ReservoirLevelCuts, ReservoirLevelCutsSingle, CalculateReferenceFlow, AverageReservoirLevel, MediumModelsAllParticipants, SaveMediumModel, ReadMediumModel, ReadMediumModelSingle, MarketClearing, MarketClearingSolo, OthersNomination, Final_Revenue, Final_Revenue_Solo
+export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir!, update_ind_reservoir!, update_ind_reservoir_participant!, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, ShortTermScheduling, RealTimeBalancing, MediumTermModel, SingleOwnerMediumTermModel, SingleOwnerBidding, SingleOwnerScheduling, WaterValueCuts, WaterValueCutsSingle, prepare_pricedata, prepare_inflowdata, Inflow_Scenarios_Short, Inflow_Scenarios_Medium, Price_Scenarios_Medium, BalanceParameters, Price_Scenarios_Short, Create_Price_Points, create_Ω_Nonanticipatory, create_Ω_Anticipatory, create_Ω_medium, ReservoirLevelCuts, ReservoirLevelCutsSingle, CalculateReferenceFlow, AverageReservoirLevel, MediumModelsAllParticipants, SaveMediumModel, ReadMediumModel, ReadMediumModelSingle, MarketClearing, MarketClearingSolo, OthersNomination, Final_Revenue, Final_Revenue_Solo
  
 mutable struct Reservoir
     dischargepoint::String
@@ -267,7 +267,24 @@ Every participant has a field balance, it is the updated by the difference of no
 function update_ind_reservoir!(Qnom::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}, Qref::Dict{Reservoir, Float64})
     for (nom, value) in Qnom
         if haskey(nom.participant.individualreservoir, nom.reservoir)
-            nom.participant.individualreservoir[nom.reservoir] += (Qref[nom.reservoir] - value)
+            nom.participant.individualreservoir[nom.reservoir] = nom.participant.individualreservoir[nom.reservoir] + Qref[nom.reservoir] - value
+        end
+    end
+end
+
+"""
+function update_ind_reservoir_participant()
+    Variation of previous function, with the difference that this function acts on the Participant Objects.
+    Update the individual reservoir by updating the balance of every participant through their new nomination.
+    Every participant has a field balance, it is the updated by the difference of nomination value and reference flow at every reservoir.
+    (Times 24, as it is done for the entire day)
+"""
+function update_ind_reservoir_participant!(J::Vector{Participant}, R::Vector{Reservoir}, Qnom::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}, Qref::Dict{Reservoir, Float64})
+    for (nom, value) in Qnom
+        j = filter(p -> p.name == nom.participant.name, J)[1]
+        r = filter(r -> r.dischargepoint == nom.reservoir.dischargepoint, R)[1]
+        if haskey(nom.participant.individualreservoir, nom.reservoir)
+            j.individualreservoir[r] = nom.participant.individualreservoir[nom.reservoir] + Qref[nom.reservoir] - value
         end
     end
 end
@@ -1029,7 +1046,7 @@ function ShortTermScheduling(
         subproblem_builder_short,
         stages = Stages,
         sense = :Max,
-        upper_bound = sum(r.maxvolume for r in R) * sum(k.equivalent for k in K_j) * mu_up * T * Stages * lambda,
+        upper_bound = 10 * sum(r.maxvolume for r in R) * sum(k.equivalent for k in K_j) * mu_up * T * Stages * lambda,
         optimizer = optimizer
         )   
         

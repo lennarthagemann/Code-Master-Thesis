@@ -58,14 +58,12 @@ const iteration_count_medium = 1000
 
 price_data = prepare_pricedata(filepath_prices)
 inflow_data = prepare_inflowdata(filepath_inflows)
-NameToParticipant = Dict{String, Participant}(j.name => j for j in J)
 
 PriceScenariosMedium = Price_Scenarios_Medium(price_data, scenario_count_prices_medium)
 InflowScenariosMedium = Inflow_Scenarios_Medium(inflow_data, ColumnReservoir, scenario_count_inflows_weekly, R)
 Ω_medium, P_medium =  create_Ω_medium(PriceScenariosMedium, InflowScenariosMedium, R);
 MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded = ReadMediumModel(savepath_watervalue, J, R, Ω_medium, P_medium, stage_count_medium, iteration_count_medium)
 MediumModelSingle = ReadMediumModelSingle(savepath_watervalue, R, K, Ω_medium, P_medium, stage_count_medium, iteration_count_medium)
-Strategy = Dict(j => "Nonanticipatory" for j in J)
 mu_up, mu_down = BalanceParameters(price_data)
 
 
@@ -78,7 +76,7 @@ mu_up, mu_down = BalanceParameters(price_data)
     What is more efficient, who earns the most money?
     
 """
-function SingleOwnerSimulation(R::Vector{Reservoir}, K::Vector{HydropowerPlant}, mu_up, mu_down, inflow_data, price_data, MediumModelSingle, currentweek::Int64, price_point_count::Int64, iteration_count_bidding::Int64, T::Int64, stage_count_bidding::Int64, stage_count_short::Int64, scenario_count_prices::Int64, scenario_count_inflows::Int64)
+function SingleOwnerSimulation(R::Vector{Reservoir}, K::Vector{HydropowerPlant}, mu_up, mu_down, inflow_data, price_data, MediumModelSingle, currentweek::Int64, iteration_count_bidding::Int64, T::Int64, stage_count_bidding::Int64, stage_count_short::Int64, scenario_count_prices::Int64, scenario_count_inflows::Int64)
     _, f = AverageReservoirLevel(R, inflow_data)
     cuts =  ReservoirLevelCutsSingle(R, K,  f, currentweek, stage_count_short) 
     WaterCuts = WaterValueCutsSingle(R, MediumModelSingle, cuts, currentweek)
@@ -186,7 +184,6 @@ function SecondLayerSimulation(J::Vector{Participant}, R::Vector{Reservoir}, Qno
             end
         end
     end
-
     return Qnoms2
 end
 
@@ -242,6 +239,7 @@ function Comparison_Single_VF(R::Vector{Reservoir},J::Vector{Participant}, mu_up
         # Reservoir Parameters
         Qref = CalculateReferenceFlow(R, l_traj, f, currentweek)
         l_single = Dict{Reservoir, Float64}(r => r.currentvolume for r in R)
+        l_vf_ind = Dict{Participant, Dict{Reservoir, Float64}}(j => Dict(r => j.individualreservoir[r] for r in R) for j in J)
         # Water Value Function(s)
         cuts_single =  ReservoirLevelCutsSingle(R, K,  f, currentweek, stage_count_short) 
         WaterCuts_single = WaterValueCutsSingle(R, MediumModelSingle, cuts_single, currentweek)
@@ -276,7 +274,12 @@ function Comparison_Single_VF(R::Vector{Reservoir},J::Vector{Participant}, mu_up
             l_single[r] = l_single[r] + inflow[r] - Qnom[r]
         end
         l_vf = Dict{Reservoir, Float64}(r => r.currentvolume for r in R)
-        l_vf_ind = Dict{Participant, Dict{Reservoir, Float64}}(j => j.individualreservoir for j in J)
+        println()
+        for j in J
+            for r in R
+                l_vf_ind[j][r] = l_vf_ind[j][r] - Qnoms2[(participant = j, reservoir = r)] + Qref[r]
+            end
+        end
         # Revenues
         Individual_Revenue = Final_Revenue(J, price, Obligations, z_ups, z_downs, mu_up, mu_down, T)
         Revenue_single = Final_Revenue_Solo(price, Obligation, z_up, z_down, mu_up, mu_down, T)
@@ -294,7 +297,7 @@ function Comparison_Single_VF(R::Vector{Reservoir},J::Vector{Participant}, mu_up
 end
 
 # HourlyBiddingCurves, Obligations, Qnoms1, Qadj1, P_Swap1, price, Qnoms2, Qadj2, P_Swap2, z_ups, z_downs = ExampleSimulation(R, J, mu_up, mu_down,inflow_data, price_data, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, currentweek, scenario_count_prices)
-# HourlyBiddingCurve, Obligation, price_solo, Qnom, z_up, z_down = SingleOwnerSimulation(R, K, mu_up, mu_down, inflow_data, price_data, MediumModelSingle, currentweek, price_point_count, iteration_count_Bidding, T, stage_count_bidding, stage_count_short, scenario_count_prices, scenario_count_inflows)
+# HourlyBiddingCurve, Obligation, price_solo, Qnom, z_up, z_down = SingleOwnerSimulation(R, K, mu_up, mu_down, inflow_data, price_data, MediumModelSingle, currentweek, iteration_count_Bidding, T, stage_count_bidding, stage_count_short, scenario_count_prices, scenario_count_inflows)
 
 """
 function SplitRevenues(J, R, Revenues)
