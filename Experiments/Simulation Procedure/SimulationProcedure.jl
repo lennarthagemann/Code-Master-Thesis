@@ -127,43 +127,6 @@ end
 
 
 """
-    FirstLayerSimulation(Strategy)
-
-    We simulate the Bidding Models which are relevant depending on the participants strategy.
-    We include the generation of the nonanticipatory/anticipatory uncertainty sets here
-    The HourlyBiddingCurves and Nominations are returned.
-"""
-function FirstLayerSimulation(J::Vector{Participant}, all_res::Vector{Reservoir}, Strategy::Dict{Participant, String}, price_data::DataFrame, inflow_data::DataFrame, Qref::Dict{Reservoir, Float64}, cuts, cutsOther, WaterCuts, WaterCutsOther, iteration_count_short::Int64, mu_up::Float64, mu_down::Float64, T::Int64, stage_count_bidding::Int64, scenario_count_prices::Int64)
-
-    HourlyBiddingCurves = Dict{Participant, Dict{Int64, Vector{Float64}}}()
-    Qnoms = Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}()
-    Ω1 = Dict{Participant, Any}()
-    PPoints = Dict{Participant, Vector{Vector{Float64}}}()
-    for j in J
-        R = collect(filter(r -> j.participationrate[r] > 0.0, all_res))
-        Ω_NA_local, P_NA_local, Ω_scenario_local, P_scenario_local = create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, all_res, stage_count_bidding)
-        PPoints[j] = Create_Price_Points(Ω_NA_local, scenario_count_prices, T, mu_up)
-        if Strategy[j] == "Nonanticipatory"
-            Qnom, HourlyBiddingCurve = Nonanticipatory_Bidding(R, j, PPoints[j], Ω_NA_local, P_NA_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding)
-            HourlyBiddingCurves[j] = HourlyBiddingCurve
-        else
-            Ω_A_local, P_A_local = create_Ω_Anticipatory(Ω_NA_local, Ω_scenario_local, P_scenario_local, J, j, all_res, PPoints[j], Qref, cutsOther, WaterCutsOther, stage_count_bidding, mu_up, mu_down, T)
-            Qnom, HourlyBiddingCurve = Anticipatory_Bidding(all_res, j, J, PPoints[j], Ω_A_local, P_A_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding)
-            HourlyBiddingCurves[j] = HourlyBiddingCurve
-        end
-        for r in all_res
-            if j.participationrate[r] > 0
-                Qnoms[(participant = j, reservoir = r)] = Qnom[r]
-            else
-                Qnoms[(participant = j, reservoir = r)] = Qref[r]
-            end
-        end
-        Ω1[j] = Ω_NA_local
-    end
-    return HourlyBiddingCurves, Qnoms, Ω1, PPoints
-end
-
-"""
 
     SecondLayerSimulation(J, R, Qnoms1, Qadj1, Obligations, price_data, inflow_data, Qref, cuts, WaterCuts, iteration_count_short, mu_up, mu_down, T, stage_count_short)
 
@@ -273,8 +236,7 @@ function Comparison_Single_VF(R::Vector{Reservoir},J::Vector{Participant}, mu_up
         for r in R
             l_single[r] = l_single[r] + inflow[r] - Qnom[r]
         end
-        l_vf = Dict{Reservoir, Float64}(r => r.currentvolume for r in R)
-        println()
+        l_vf_ind = Dict{Reservoir, Float64}(r => r.currentvolume for r in R)
         for j in J
             for r in R
                 l_vf_ind[j][r] = l_vf_ind[j][r] - Qnoms2[(participant = j, reservoir = r)] + Qref[r]
