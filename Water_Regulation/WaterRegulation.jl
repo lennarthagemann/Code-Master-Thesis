@@ -11,7 +11,7 @@ using DataFrames
 using CSV
 using Dates
 using Distributions
-export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir!, update_ind_reservoir!, update_ind_reservoir_participant!, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, FirstLayerSimulation, ShortTermScheduling, RealTimeBalancing, MediumTermModel, SingleOwnerMediumTermModel, SingleOwnerBidding, SingleOwnerScheduling, WaterValueCuts, WaterValueCutsSingle, prepare_pricedata, prepare_inflowdata, Inflow_Scenarios_Short, Inflow_Scenarios_Medium, Price_Scenarios_Medium, BalanceParameters, Price_Scenarios_Short, Create_Price_Points, create_Ω_Nonanticipatory, create_Ω_Anticipatory, create_Ω_medium, ReservoirLevelCuts, ReservoirLevelCutsSingle, CalculateReferenceFlow, AverageReservoirLevel, MediumModelsAllParticipants, SaveMediumModel, ReadMediumModel, ReadMediumModelSingle, MarketClearing, MarketClearingSolo, OthersNomination, Final_Revenue, Final_Revenue_Solo
+export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir!, update_ind_reservoir!, update_ind_reservoir_participant!, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, FirstLayerSimulation, SecondLayerSimulation, ShortTermScheduling, ThirdLayerSimulation, RealTimeBalancing, MediumTermModel, SingleOwnerMediumTermModel, SingleOwnerBidding, SingleOwnerScheduling, WaterValueCuts, WaterValueCutsSingle, prepare_pricedata, prepare_inflowdata, Inflow_Scenarios_Short, Inflow_Scenarios_Medium, Price_Scenarios_Medium, BalanceParameters, Price_Scenarios_Short, Create_Price_Points, create_Ω_Nonanticipatory, create_Ω_Anticipatory, create_Ω_medium, ReservoirLevelCuts, ReservoirLevelCutsSingle, CalculateReferenceFlow, AverageReservoirLevel, MediumModelsAllParticipants, SaveMediumModel, ReadMediumModel, ReadMediumModelSingle, MarketClearing, MarketClearingSolo, OthersNomination, Final_Revenue, Final_Revenue_Solo
  
 mutable struct Reservoir
     dischargepoint::String
@@ -970,7 +970,7 @@ function FirstLayerSimulation(J::Vector{Participant},
             Qnom, HourlyBiddingCurve = Nonanticipatory_Bidding(R, j, PPoints[j], Ω_NA_local, P_NA_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding, Initial_Reservoir, Initial_Individual_Reservoir)
             HourlyBiddingCurves[j] = HourlyBiddingCurve
         else
-            Ω_A_local, P_A_local = create_Ω_Anticipatory(Ω_NA_local, Ω_scenario_local, P_scenario_local, J, j, all_res, PPoints[j], Qref, cutsOther, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, stage_count_bidding, mu_up, mu_down, T)
+            Ω_A_local, P_A_local = create_Ω_Anticipatory(Ω_NA_local, Ω_scenario_local, P_scenario_local, J, j, all_res, PPoints[j], Qref, cutsOther, WaterCutsOther, stage_count_bidding, mu_up, mu_down, T)
             Qnom, HourlyBiddingCurve = Anticipatory_Bidding(all_res, j, J, PPoints[j], Ω_A_local, P_A_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding, Initial_Reservoir, Initial_Individual_Reservoir)
             HourlyBiddingCurves[j] = HourlyBiddingCurve
         end
@@ -1119,7 +1119,27 @@ end
     Simulate the Second Layer of Optimization Models: For given Nominations and Day-Ahead Market Obligations, find the optimal Short Term Scheduling.
 
 """
-function SecondLayerSimulation(J::Vector{Participant}, R::Vector{Reservoir}, Qnoms1, Qadj1, Obligations, price, price_data::DataFrame, inflow_data::DataFrame, Qref, cuts, WaterCuts, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_short::Int64, mu_up::Float64, mu_down::Float64, T::Int64, stage_count_short::Int64)
+function SecondLayerSimulation(J::Vector{Participant},
+    R::Vector{Reservoir},
+    Qnoms1::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64},
+    Qadj1::Dict{Reservoir, Float64},
+    Obligations::Dict{Participant, Vector{Float64}},
+    price::Vector{Float64},
+    price_data::DataFrame,
+    inflow_data::DataFrame,
+    Qref::Dict{Reservoir, Float64},
+    cuts,
+    WaterCuts,
+    Initial_Reservoir::Dict{Reservoir, Float64},
+    Initial_Individual_Reservoir::Dict{Participant, Dict{Reservoir, Float64}},
+    iteration_count_short::Int64,
+    mu_up::Float64,
+    mu_down::Float64,
+    T::Int64,
+    stage_count_short::Int64,
+    scenario_count_prices::Int64,
+    scenario_count_inflows::Int64,
+    currentweek::Int64)
     
     QnomO1 = OthersNomination(Qnoms1, Qadj1, J, R)
     Qnoms2 = Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}()
@@ -1181,6 +1201,25 @@ function RealTimeBalancing(
     set_silent(model_balancing)
     optimize!(model_balancing)
     return model_balancing, value.(z_up), value.(z_down), value.(w)
+end
+
+function ThirdLayerSimulation(J, R, Qadj2, P_Swap2, Obligations, mu_up, mu_down, T)
+    z_ups = Dict{Participant, Vector{Float64}}()
+    z_downs = Dict{Participant, Vector{Float64}}()
+    for j in J
+        _, z_up, z_down, w = RealTimeBalancing(
+            R,
+            j,
+            Qadj2,
+            P_Swap2[j],
+            T,
+            mu_up,
+            mu_down,
+            Obligations[j])
+        z_ups[j] = z_up
+        z_downs[j] = z_down
+    end
+    return z_ups, z_downs
 end
 
 #=
@@ -1844,8 +1883,10 @@ end
     To avoid combinatorial explosion, we simply consider different scenarios in the first stage.
 
 """
-function create_Ω_Anticipatory(Ω_NA, Ω_scenario, P_scenario, J::Vector{Participant}, j::Participant, R::Vector{Reservoir}, PPoints, Qref, cutsOther, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, stage_count_short::Int64, mu_up, mu_down, T; iteration_count_short = 10)
+function create_Ω_Anticipatory(Ω_NA, Ω_scenario, P_scenario, J::Vector{Participant}, j::Participant, R::Vector{Reservoir}, PPoints, Qref, cutsOther, WaterCutsOther, stage_count_bidding::Int64, mu_up, mu_down, T; iteration_count_bidding = 10)
     O, _ = OtherParticipant(J, j, R)
+    Initial_Reservoir_Other = Dict(r => r.currentvolume for r in R)
+    Initial_Individual_Reservoir_Other = Dict(O => Dict(r => r.currentvolume for r in R))
     local_nom = Dict(scenario => Nonanticipatory_Bidding(
         R,
         O,
@@ -1855,15 +1896,15 @@ function create_Ω_Anticipatory(Ω_NA, Ω_scenario, P_scenario, J::Vector{Partic
         Qref,
         cutsOther[j],
         WaterCutsOther[j],
-        iteration_count_short,
+        iteration_count_bidding,
         mu_up,
         mu_down,
         T,
-        stage_count_short,
-        Initial_Reservoir,
-        Initial_Individual_Reservoir; printlevel = 0)[1] for scenario in eachindex(Ω_scenario))
-    Ω_A = Dict(i =>  [(Ω_NA[i][j]..., nomination = local_nom[j]) for j in eachindex(Ω_NA[i])] for i in 1:stage_count_short)
-    P_A = Dict(i => [1/length(Ω_A[i]) for j in eachindex(Ω_A[i])] for i in 1:stage_count_short)
+        stage_count_bidding,
+        Initial_Reservoir_Other,
+        Initial_Individual_Reservoir_Other; printlevel = 0)[1] for scenario in eachindex(Ω_scenario))
+    Ω_A = Dict(i =>  [(Ω_NA[i][j]..., nomination = local_nom[j]) for j in eachindex(Ω_NA[i])] for i in 1:stage_count_bidding)
+    P_A = Dict(i => [1/length(Ω_A[i]) for j in eachindex(Ω_A[i])] for i in 1:stage_count_bidding)
     return Ω_A, P_A
 end
 
