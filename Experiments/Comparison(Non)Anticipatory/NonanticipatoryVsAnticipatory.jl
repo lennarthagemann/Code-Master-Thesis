@@ -37,7 +37,7 @@ const filepath_Ljungan = pwd() * "\\Water_Regulation\\TestDataWaterRegulation\\L
 const filepath_prices = pwd() * "\\Inflow Forecasting\\Data\\Spot Prices\\prices_df.csv"
 const filepath_inflows = pwd() * "\\Inflow Forecasting\\Data\\Inflow\\Data from Flasjoen and Holmsjoen.csv"
 const savepath_watervalue = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Inflow Forecasting\\WaterValue"
-const savepath_experiment ="C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Experiments\\Results\\NonanticipatoryVsAnticipatory.csv"
+const savepath_experiment ="C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Experiments\\Results\\NonanticipatoryVsAnticipatory"
 R, K, J = read_data(filepath_Ljungan)
 
 const ColumnReservoir = Dict(r => r.dischargepoint * " Inflow" for r in R)
@@ -94,8 +94,8 @@ function AnticipatoryVsNonanticipatory(R::Vector{Reservoir},J::Vector{Participan
     cutsOther = Dict(j => ReservoirLevelCuts(R, Others[j].plants, Others[j], f, currentweek, stage_count_short) for j in J)
     WaterCuts = Dict(j => WaterValueCuts(R, j, MediumModel_j[j], cuts[j], currentweek) for j in J)
     WaterCutsOther = Dict(j => WaterValueCuts(R, Others[j], MediumModel_O[j], cutsOther[j], currentweek) for j in J)
-    Qnoms_Bidding = Dict{Dict{Participant, String}, Dict{Any, Float64}}()
-    Qnoms_Scheduling = Dict{Dict{Participant, String}, Dict{Any, Float64}}()
+    Qnoms_Bidding = Dict{Dict{Participant, String}, Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}}()
+    Qnoms_Scheduling = Dict{Dict{Participant, String}, Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}}()
     Qadjs = Dict{Dict{Participant, String}, Dict{Reservoir, Float64}}()
     P_Swaps = Dict{Dict{Participant, String}, Dict{Participant, Dict{Reservoir, Float64}}}()
     z_ups = Dict{Dict{Participant, String}, Dict{Participant, Vector{Float64}} }()
@@ -103,12 +103,12 @@ function AnticipatoryVsNonanticipatory(R::Vector{Reservoir},J::Vector{Participan
     Individual_Revenues = Dict{Dict{Participant, String}, Dict{Participant, Float64}}()
     l_reals = Dict{Dict{Participant, String}, Dict{Reservoir, Float64}}()
     l_inds = Dict{Dict{Participant, String}, Dict{Participant, Dict{Reservoir, Float64}}}()
-    Obligations = Dict{Dict{Participant, String}, Dict{Participant, Vector{Float64}}}
+    Obligations = Dict{Dict{Participant, String}, Dict{Participant, Vector{Float64}}}()
     for strat in Strategy_Combinations
         for r in R
             r.currentvolume = Initial_Reservoir[r]
             for j in J
-                j.individualreservoir[r] = Initial_Individual_Reservoir[r]
+                j.individualreservoir[r] = Initial_Individual_Reservoir[j][r]
             end
         end
         HourlyBiddingCurves, Qnoms1, Ω1, PPoints = FirstLayerSimulation(J, R, strat, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_bidding, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek)
@@ -155,6 +155,7 @@ function AnticipatoryVsNonanticipatoryWeekly(R::Vector{Reservoir},J::Vector{Part
     for week in Weeks
         Qnoms_Bidding, Obligations, Qnoms_Scheduling, Qadjs, P_Swaps, z_ups, z_downs, Individual_Revenues, l_reals, l_inds = AnticipatoryVsNonanticipatory(R, J, mu_up, mu_down, inflow_data, price_data,
         Initial_Reservoir[week], Initial_Individual_Reservoir[week], MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, week, scenario_count_prices, scenario_count_inflows, iteration_count_bidding, iteration_count_short)
+    end
     return
 end
 Initial_Reservoir = Dict{Reservoir, Float64}(r => r.currentvolume for r in R)
@@ -169,45 +170,112 @@ function ResultsToDataFrame()
     To save the results for later analysis, organize them inside a DataFrame.
     This is also helpful to do some statisical analysis, with functions from DataFrames.jl
 """
-function ResultsToDataFrame(savepath, Strategy_Combinations, Qnoms_Bidding, Obligations, Qnoms_Scheduling, Qadjs, P_Swaps, z_ups, z_downs, Individual_Revenues, l_reals, l_inds, currentweek::Int64; save = true)
-    column_names = ["Strategy", "Qnom1", "Qnom2", "Obligations", "Qadj", "P_Swap", "z_up", "z_down", "Revenue", "l_real", "l_ind", "week"]
-    column_types = [Dict{Participant, String}, Dict{Any, Float64}, Dict{Any, Float64}, Dict{Participant, Vector{Float64}}, Dict{Reservoir, Float64}, Dict{Participant, Dict{Reservoir, Float64}}, Dict{Participant, Vector{Float64}}, Dict{Participant, Vector{Float64}}, Dict{Participant, Float64}, Dict{Reservoir, Float64}, Dict{Participant, Dict{Reservoir, Float64}}, Int64]
-    if isfile(savepath)
+function ResultsToDataFrame(savepath, J::Vector{Participant}, R::Vector{Reservoir}, Strategy_Combinations, Qnoms_Bidding, Obligations, Qnoms_Scheduling, Qadjs, P_Swaps, z_ups, z_downs, Individual_Revenues, l_reals, l_inds, currentweek::Int64; save = true)
+    column_names_df_nominations = ["week", ["Strategy_" * j.name for j in J]..., ["Qnom1_" * j.name * "_" * r.dischargepoint for j in J for r in R]..., ["Qnom2_" * j.name * "_" * r.dischargepoint for j in J for r in R]..., ["Qadj_" * r.dischargepoint for r in R]..., ["P_Swap_" * j.name * "_" * r.dischargepoint for j in J for r in R]...]
+    column_types_df_nominations = [Int64, [String for j in J]..., [Float64 for j in J for r in R]..., [Float64 for j in J for r in R]..., [Float64 for r in R]..., [Float64 for j in J for r in R]...]
+    column_names_df_Obligations = ["week", ["Strategy_" * j.name for j in J]..., ["Obligations_" * j.name for j in J]..., ["z_up_" * j.name for j in J]..., ["z_down_" *j.name for j in J]..., ["Revenue_"*j.name for j in J]...]
+    column_types_df_Obligations = [Int64, [String for j in J]..., [Vector{Float64} for j in J]..., [Vector{Float64} for j in J]..., [Vector{Float64} for j in J]..., [Float64 for j in J]...]
+    column_names_df_Reservoirs = ["week", ["Strategy_" * j.name for j in J]...,  ["l_real_" * r.dischargepoint for r in R]..., ["l_ind_" * j.name * "_" * r.dischargepoint for j in J for r in R]...]
+    column_types_df_Reservoirs = [Int64, [String for j in J]...,  [Float64 for r in R]..., [Float64 for j in J for r in R]...,]
+
+    if isfile(savepath * "\\Nominations.csv")
         # File exists, you can attempt to load the DataFrame from the file
-        df = CSV.File(savepath, types = column) |> DataFrame
+        df_nominations = CSV.File(savepath * "\\Nominations.csv", types = column_types_df_nominations) |> DataFrame
+        df_Obligations = CSV.File(savepath * "\\Obligations.csv", types = column_types_df_Obligations) |> DataFrame
+        df_Reservoirs = CSV.File(savepath * "\\Reservoirs.csv", types = column_rypes_df_Reservoirs) |> DataFrame
         println("DataFrame already exists. Add input parameters as new data...")
-        println(eltype.(eachcol(df)))
-        @assert names(df) == column_names
-        @assert (eltype.(eachcol(df))) == column_types
+        println(eltype.(eachcol(df_nominations)))
+        @assert names(df_nominations) == column_names_df_nominations
+        @assert (eltype.(eachcol(df_nominations))) == column_types_df_nominations
+        @assert names(df_Obligations) == column_names_df_Obligations
+        @assert (eltype.(eachcol(df_Obligations))) == column_types_df_Obligations
+        @assert names(df_Reservoirs) == column_names_df_Reservoirs
+        @assert (eltype.(eachcol(df_Reservoirs))) == column_types_df_Reservoirs
     else
         # File doesn't exist
         println("DataFrame does not exist yet and will subsequently be created and filled...")
-        df = DataFrame()
-        for (name, type) in zip(column_names, column_types)
-            df[!, name] = Vector{type}()
+        df_nominations = DataFrame()
+        df_Obligations = DataFrame()
+        df_Reservoirs = DataFrame()
+        for (name, type) in zip(column_names_df_nominations, column_types_df_nominations)
+            df_nominations[!, name] = Vector{type}()
+        end
+        for (name, type) in zip(column_names_df_Obligations, column_types_df_Obligations)
+            df_Obligations[!, name] = Vector{type}()
+        end
+        for (name, type) in zip(column_names_df_Reservoirs, column_types_df_Reservoirs)
+            df_Reservoirs[!, name] = Vector{type}()
         end
     end
     
     for strat in Strategy_Combinations
         println(strat)
-        row = (Strategy = strat,
-        Qnom1 = Qnoms_Bidding[strat],
-        Qnom2 = Qnoms_Scheduling[strat],
-        Obligations = Obligations[strat],
-        Qadj = Qadjs[strat],
-        P_Swap = P_Swaps[strat],
-        z_up = z_ups[strat],
-        z_down = z_downs[strat], 
-        Revenue = Individual_Revenues[strat],
-        l_real = l_reals[strat],
-        l_ind = l_inds[strat],
-        week = currentweek)
-        push!(df, row)
+        row_nominations = (week = currentweek,
+        Strategy_Sydkraft = strat[J[1]],
+        Strategy_Fortum = strat[J[2]],
+        Strategy_Statkraft = strat[J[3]],
+        Qnom1_Sydkraft_Flasjon = Qnoms_Bidding[strat][participant = J[1], reservoir = R[1]],
+        Qnom1_Sydkraft_Holmsjon = Qnoms_Bidding[strat][participant = J[1], reservoir = R[2]],
+        Qnom1_Fortum_Flasjon = Qnoms_Bidding[strat][participant = J[2], reservoir = R[1]],
+        Qnom1_Fortum_Holmsjon = Qnoms_Bidding[strat][participant = J[2], reservoir = R[2]],
+        Qnom1_Statkraft_Flasjon = Qnoms_Bidding[strat][participant = J[3], reservoir = R[1]],
+        Qnom1_Statkraft_Holmsjon = Qnoms_Bidding[strat][participant = J[3], reservoir = R[2]],
+        Qnom2_Sydkraft_Flasjon = Qnoms_Scheduling[strat][participant = J[1], reservoir = R[1]],
+        Qnom2_Sydkraft_Holmsjon = Qnoms_Scheduling[strat][participant = J[1], reservoir = R[2]],
+        Qnom2_Fortum_Flasjon = Qnoms_Scheduling[strat][participant = J[2], reservoir = R[1]],
+        Qnom2_Fortum_Holmsjon = Qnoms_Scheduling[strat][participant = J[2], reservoir = R[2]],
+        Qnom2_Statkfraft_Flasjon = Qnoms_Scheduling[strat][participant = J[3], reservoir = R[1]],
+        Qnom2_Statkraft_Holmsjon = Qnoms_Scheduling[strat][participant = J[3], reservoir = R[2]],
+        Qadj_Flasjon = Qadjs[strat][R[1]],
+        Qadj_Holmsjon = Qadjs[strat][R[2]],
+        P_Swap_Sydkraft_Flasjon = P_Swaps[strat][participant = J[1], reservoir = R[1]],
+        P_Swap_Sydkraft_Holmsjon = P_Swaps[strat][participant = J[1], reservoir = R[2]],
+        P_Swap_Fortum_Flasjon = P_Swaps[strat][participant = J[2], reservoir = R[1]],
+        P_Swap_Fortum_Holmsjon = P_Swaps[strat][participant = J[2], reservoir = R[2]],
+        P_Swap_Statkfraft_Flasjon = P_Swaps[strat][participant = J[3], reservoir = R[1]],
+        P_Swap_Statkfraft_Holmsjon = P_Swaps[strat][participant = J[3], reservoir = R[2]])
+        row_Obligations = (week = currentweek,
+        Strategy_Sydkraft = strat[J[1]],
+        Strategy_Fortum = strat[J[2]],
+        Strategy_Statkraft = strat[J[3]],
+        Obligations_Sydkraft = Obligations[strat][J[1]],
+        Obligations_Fortum = Obligations[strat][J[2]],
+        Obligations_Statkraft = Obligations[strat][J[3]],
+        z_up_Sydkraft = z_ups[strat][J[1]],
+        z_up_Fortum = z_ups[strat][J[2]],
+        z_up_Statkraft = z_ups[strat][J[3]],
+        z_down_Sydkraft = z_downs[strat][J[1]],
+        z_down_Fortum = z_downs[strat][J[2]],
+        z_down_Statkraft = z_downs[strat][J[3]],
+        Revenue_Sydkraft = Individual_Revenues[strat[J[1]]],
+        Revenue_Fortum = Individual_Revenues[strat[J[2]]],
+        Revenue_Statkraft = Individual_Revenues[strat[J[3]]]
+        )
+        row_Reservoirs = (week = currentweek,
+        Strategy_Sydkraft = strat[J[1]],
+        Strategy_Fortum = strat[J[2]],
+        Strategy_Statkraft = strat[J[3]],
+        l_real_Flasjon = l_reals[strat][R[1]],
+        l_real_Holmsjon = l_reals[strat][R[2]],
+        l_ind_Sydkraft_Flasjon = l_inds[strat][J[1]][R[1]],
+        l_ind_Sydkraft_Holmsjon = l_inds[strat][J[1]][R[2]],
+        l_ind_Fortum_Flasjon = l_inds[strat][J[2]][R[1]],
+        l_ind_Fortum_Holmsjon = l_inds[strat][J[2]][R[2]],
+        l_ind_Statkraft_Flasjon = l_inds[strat][J[3]][R[1]],
+        l_ind_Statkraft_Holmsjon = l_inds[strat][J[3]][R[2]],
+        )
+        push!(df_nominations, row_nominations)
+        push!(df_Obligations, row_Obligations)
+        push!(df_Reservoirs, row_Reservoirs)
     end
 
     if save == true
         println("Results will be saved at $(savepath)...")
-        CSV.write(savepath, df)
+        CSV.write(savepath * "\\Nominations.csv", df_nominations)
+        CSV.write(savepath * "\\Obligations.csv", df_Obligations)
+        CSV.write(savepath * "\\Reservoirs.csv", df_Reservoirs)
     end
-    return df
+    return df_nominations, df_Obligations, df_Reservoirs
 end
+
+df_nominations, df_Obligations, df_Reservoirs = ResultsToDataFrame(savepath_experiment, J, R, Strategy_Combinations, Qnoms_Bidding, Obligations, Qnoms_Scheduling, Qadjs, P_Swaps, z_ups, z_downs, Individual_Revenues, l_reals, l_inds, currentweek)
