@@ -103,8 +103,8 @@
                 "Holmsjon": 0.0
             },
             "individualreservoir": {
-                "Flasjon": 1.5e3,
-                "Holmsjon": 1.8e3
+                "Flasjon": 3.674e3,
+                "Holmsjon": 1.785e3
             } 
         },
         {
@@ -115,8 +115,8 @@
                 "Holmsjon": 0.82
             },
             "individualreservoir": {
-                "Flasjon": 1e3,
-                "Holmsjon": 1.4e3
+                "Flasjon": 3.674e3,
+                "Holmsjon": 1.785e3
             } 
         },
         {
@@ -127,8 +127,8 @@
                 "Holmsjon": 1.07
             },
             "individualreservoir": {
-                "Flasjon": 2e3,
-                "Holmsjon": 1.8e2
+                "Flasjon": 3.674e3,
+                "Holmsjon": 1.785e2
             } 
         }
     ],

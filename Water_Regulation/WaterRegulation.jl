@@ -682,7 +682,8 @@ function Nonanticipatory_Bidding(
     Initial_Reservoir::Dict{Reservoir, Float64},
     Initial_Individual_Reservoir::Dict{Participant, Dict{Reservoir, Float64}};
     S = 200,
-    printlevel = 1,
+    printlevel = 0,
+    stability_report = false,
     stopping_rule = SDDP.BoundStalling(10, 1e-4),
     optimizer = CPLEX.Optimizer,
     DualityHandler = SDDP.ContinuousConicDuality(),
@@ -781,7 +782,7 @@ function Nonanticipatory_Bidding(
         optimizer = optimizer
         )
         
-    SDDP.train(model; iteration_limit = iteration_count, stopping_rules = [stopping_rule], duality_handler = DualityHandler, print_level = printlevel)
+    SDDP.train(model; iteration_limit = iteration_count, stopping_rules = [stopping_rule], duality_handler = DualityHandler, print_level = printlevel, run_numerical_stability_report = stability_report)
     
     rule = SDDP.DecisionRule(model; node = 1)
     sol = SDDP.evaluate(
@@ -812,7 +813,8 @@ function Anticipatory_Bidding(
     Initial_Reservoir::Dict{Reservoir, Float64},
     Initial_Individual_Reservoir::Dict{Participant, Dict{Reservoir, Float64}};
     S = 200,
-    printlevel = 1,
+    printlevel = 0,
+    stability_report = false,
     stopping_rule = SDDP.BoundStalling(10, 1e-4),
     optimizer = CPLEX.Optimizer,
     DualityHandler = SDDP.ContinuousConicDuality(),
@@ -824,9 +826,8 @@ function Anticipatory_Bidding(
     R_O = collect(filter(r -> !(r in R), all_res))
     K = vcat(K_j, K_O)
     I = length(PPoints[1]) - 1
-
     function subproblem_builder_anticipatory(subproblem::Model, node::Int64)
-        @variable(subproblem, 0 <= l[r = all_res] <= r.maxvolume, SDDP.State, initial_value = Initial_Reservoir[r])
+        @variable(subproblem, l[r = all_res] <= r.maxvolume, SDDP.State, initial_value = Initial_Reservoir[r])
         @variable(subproblem, u_start[k = K_j], SDDP.State, initial_value = 0, Bin)
         @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= sum(k.equivalent * k.spillreference for k in K_j), SDDP.State, initial_value=0)
         @variable(subproblem, lind[r = R], SDDP.State, initial_value = Initial_Individual_Reservoir[j][r])
@@ -863,7 +864,7 @@ function Anticipatory_Bidding(
             @variable(subproblem, 0 <= Qadj[r = all_res])
             @variable(subproblem, Pswap[r = all_res])
             @variable(subproblem, Pover[k = K_O] >= 0)
-            @variable(subproblem, relax[r = R_O])
+            # @variable(subproblem, relax[r = R])
             @constraint(subproblem, balance[r = R], l[r].out == l[r].in - Qadj[r] + f[r] - s[r])
             @constraint(subproblem, startcond[k = K_j], u_start[k].in == u[1,k])
             @constraint(subproblem, endcond[k = K_j], u_start[k].out == u[T,k])
@@ -928,7 +929,7 @@ function Anticipatory_Bidding(
         optimizer = optimizer
         )
         
-        SDDP.train(model_ant; iteration_limit = iteration_count, stopping_rules = [stopping_rule], duality_handler = DualityHandler, print_level = printlevel)
+        SDDP.train(model_ant; iteration_limit = iteration_count, stopping_rules = [stopping_rule], duality_handler = DualityHandler, print_level = printlevel, run_numerical_stability_report = stability_report)
         
         rule_ant = SDDP.DecisionRule(model_ant; node = 1)
         sol_ant = SDDP.evaluate(
@@ -956,7 +957,7 @@ function FirstLayerSimulation(J::Vector{Participant},
     Qref::Dict{Reservoir, Float64},
     cuts, cutsOther, WaterCuts, WaterCutsOther,
     Initial_Reservoir, Initial_Individual_Reservoir,
-    iteration_count_short::Int64, mu_up::Float64, mu_down::Float64, T::Int64, stage_count_bidding::Int64, scenario_count_prices::Int64, scenario_count_inflows::Int64, currentweek::Int64)
+    iteration_count_short::Int64, mu_up::Float64, mu_down::Float64, T::Int64, stage_count_bidding::Int64, scenario_count_prices::Int64, scenario_count_inflows::Int64, currentweek::Int64; printlevel = 1)
 
     HourlyBiddingCurves = Dict{Participant, Dict{Int64, Vector{Float64}}}()
     Qnoms = Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}()
@@ -967,11 +968,11 @@ function FirstLayerSimulation(J::Vector{Participant},
         Ω_NA_local, P_NA_local, Ω_scenario_local, P_scenario_local = create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, all_res, stage_count_bidding)
         PPoints[j] = Create_Price_Points(Ω_NA_local, scenario_count_prices, T, mu_up)
         if Strategy[j] == "Nonanticipatory"
-            Qnom, HourlyBiddingCurve = Nonanticipatory_Bidding(R, j, PPoints[j], Ω_NA_local, P_NA_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding, Initial_Reservoir, Initial_Individual_Reservoir)
+            Qnom, HourlyBiddingCurve = Nonanticipatory_Bidding(R, j, PPoints[j], Ω_NA_local, P_NA_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding, Initial_Reservoir, Initial_Individual_Reservoir; printlevel = printlevel)
             HourlyBiddingCurves[j] = HourlyBiddingCurve
         else
             Ω_A_local, P_A_local = create_Ω_Anticipatory(Ω_NA_local, Ω_scenario_local, P_scenario_local, J, j, all_res, PPoints[j], Qref, cutsOther, WaterCutsOther, stage_count_bidding, mu_up, mu_down, T)
-            Qnom, HourlyBiddingCurve = Anticipatory_Bidding(all_res, j, J, PPoints[j], Ω_A_local, P_A_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding, Initial_Reservoir, Initial_Individual_Reservoir)
+            Qnom, HourlyBiddingCurve = Anticipatory_Bidding(all_res, j, J, PPoints[j], Ω_A_local, P_A_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding, Initial_Reservoir, Initial_Individual_Reservoir, printlevel = printlevel)
             HourlyBiddingCurves[j] = HourlyBiddingCurve
         end
         for r in all_res
@@ -1014,7 +1015,8 @@ function ShortTermScheduling(
     Initial_Individual_Reservoir::Dict{Participant, Dict{Reservoir, Float64}};
     lambda = 10.0,
     S = 200,
-    printlevel = 1,
+    printlevel = 0,
+    stability_report = false,
     stopping_rule = [SDDP.BoundStalling(10, 1e-4)],
     optimizer = CPLEX.Optimizer)
     
@@ -1098,7 +1100,7 @@ function ShortTermScheduling(
         optimizer = optimizer
         )   
         
-    SDDP.train(model_short; iteration_limit = iteration_count, stopping_rules = stopping_rule, print_level = printlevel)
+    SDDP.train(model_short; iteration_limit = iteration_count, stopping_rules = stopping_rule, print_level = printlevel, run_numerical_stability_report = stability_report)
     
     rule_short = SDDP.DecisionRule(model_short; node = 1)
     
@@ -1231,7 +1233,7 @@ ________________________________________________________________________________
 
 function SingleOwnerBidding(
     R::Array{Reservoir},
-    Reservoir_Levels::Dict{Reservoir, Float64},
+    Initial_Reservoir::Dict{Reservoir, Float64},
     K::Array{HydropowerPlant},
     PPoints::Vector{Vector{Float64}},
     Omega,
@@ -1246,7 +1248,7 @@ function SingleOwnerBidding(
     lambda = 1.0,
     S = 200,
     stopping_rule = [SDDP.BoundStalling(10, 1e-4)],
-    printlevel = 1,
+    printlevel = 0,
     optimizer = CPLEX.Optimizer,
     deterministic = false)
 
@@ -1255,7 +1257,7 @@ function SingleOwnerBidding(
 
     function subproblem_builder_single_bidding(subproblem::Model, node::Int64)
         # State Variables
-        @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = Reservoir_Levels[r])
+        @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = Initial_Reservoir[r])
         @variable(subproblem, ustart[k = K], Bin, SDDP.State, initial_value = 0)
         @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= sum(k.equivalent * k.spillreference for k in K), SDDP.State, initial_value = 0)
         # Transition Function
@@ -1340,7 +1342,7 @@ function SingleOwnerBidding(
 end
 
 function SingleOwnerScheduling(R::Array{Reservoir},
-    Reservoir_Levels::Dict{Reservoir, Float64},
+    Initial_Reservoir::Dict{Reservoir, Float64},
     K::Array{HydropowerPlant},
     y_initial::Vector{Float64},
     price::Vector{Float64},
@@ -1356,12 +1358,12 @@ function SingleOwnerScheduling(R::Array{Reservoir},
     Stages::Int64;
     lambda = 1.5,
     S = 200,
-    printlevel = 1,
+    printlevel = 0,
     stopping_rule = [SDDP.BoundStalling(10, 1e-4)],
     optimizer = CPLEX.Optimizer)
     function subproblem_builder_single_short(subproblem::Model, node::Int64)
         # State Variables
-        @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = Reservoir_Levels[r])
+        @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = Initial_Reservoir[r])
         @variable(subproblem, ustart[k = K], Bin, SDDP.State, initial_value = 0)
         # Control Variables
         @variable(subproblem, y[t = 1:T])
@@ -1970,7 +1972,6 @@ function MarketClearing(price::Vector{Float64}, BiddingCurves::Dict{Participant,
             end
         end
     end
-    println("I_t: ", I_t)
     for j in J
         for t in 1:T
             for i in 1:I[j]

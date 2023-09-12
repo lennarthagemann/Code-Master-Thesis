@@ -72,10 +72,10 @@ function create_Obligation( T, J, R, Strategy, price_data, inflow_data, Qref, cu
 
     Helper function to create Obligation to be used in ShortTermProblem.
 """
-function create_Obligations(T::Int64, J::Vector{Participant}, R::Vector{Reservoir}, Strategy::Dict{Participant, String}, price_data::DataFrame, inflow_data::DataFrame, cuts, cutsOther, WaterCuts, WaterCutsOther, iteration_count_short, mu_up, mu_down, stage_count_bidding, scenario_count_prices, scenario_count_inflows, current_week)
+function create_Obligations(T::Int64, J::Vector{Participant}, R::Vector{Reservoir}, Strategy::Dict{Participant, String}, price_data::DataFrame, inflow_data::DataFrame, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir::Dict{Reservoir, Float64}, Initial_Individual_Reservoir::Dict{Participant, Dict{Reservoir, Float64}}, iteration_count_short, mu_up, mu_down, stage_count_bidding, scenario_count_prices, scenario_count_inflows, current_week)
     l_traj, f = AverageReservoirLevel(R, inflow_data)
     Qref = CalculateReferenceFlow(R, l_traj, f, currentweek)
-    HourlyBiddingCurves, Qnoms, Ω, PPoints = FirstLayerSimulation(J, R, Strategy, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, iteration_count_short, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, current_week)
+    HourlyBiddingCurves, Qnoms, Ω, PPoints = FirstLayerSimulation(J, R, Strategy, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_short, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, current_week)
     price = create_Ω_Nonanticipatory(price_data, inflow_data, 1, 1, currentweek, R, stage_count_bidding)[1][stage_count_bidding][1].price
     Obligation = MarketClearing(price, HourlyBiddingCurves, PPoints, J, T)
     return Obligation, price, Qnoms
@@ -115,7 +115,7 @@ function ShortTermProblemParametrizedNomination(R, K, j, Obligation, price_data,
     It will also be interesting to see if the participants are interested in th ereservoirs differently, even if the water volumes
     reaching their power plants are the same.
 """
-function ShortTermProblemParametrized(R::Vector{Reservoir}, K::Vector{HydropowerPlant}, j::Participant, Qnom_initial::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}, Obligations::Dict{Participant, Vector{Float64}}, cuts, cutsOther, WaterCuts, WaterCutsOther, mu_up, mu_down,  price_data::DataFrame, inflow_data::DataFrame, scenario_count_prices::Int64, scenario_count_inflows::Int64, currentweek::Int64, stage_count_short::Int64)
+function ShortTermProblemParametrized(R::Vector{Reservoir}, K::Vector{HydropowerPlant}, j::Participant, Qnom_initial::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}, Obligations::Dict{Participant, Vector{Float64}}, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, mu_up, mu_down,  price_data::DataFrame, inflow_data::DataFrame, scenario_count_prices::Int64, scenario_count_inflows::Int64, currentweek::Int64, stage_count_short::Int64)
 
     Qadjs = create_Qadjs(R, K, 10)
     Qnoms = Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}[]
@@ -125,7 +125,7 @@ function ShortTermProblemParametrized(R::Vector{Reservoir}, K::Vector{Hydropower
         QnomO = OthersNomination(Qnom_initial, Qadj, J, R)
         Qnoms2 = Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}()
         Ω_NA_local, P_NA_local, _, _ = create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, R, stage_count_short)
-        Qnom = ShortTermScheduling(R, j, J, Qref, Obligations[j], price, QnomO[j], Ω_NA_local, P_NA_local, cuts[j], WaterCuts[j], iteration_count_short, mu_up,mu_down, T, stage_count_short; printlevel = 0) 
+        Qnom = ShortTermScheduling(R, j, J, Qref, Obligations[j], price, QnomO[j], Ω_NA_local, P_NA_local, cuts[j], WaterCuts[j], iteration_count_short, mu_up,mu_down, T, stage_count_short, Initial_Reservoir, Initial_Individual_Reservoir; printlevel = 0) 
         for r in R
             if j.participationrate[r] > 0
                 Qnoms2[(participant = j, reservoir = r)] = Qnom[r]
@@ -140,12 +140,29 @@ end
 
 
 l_traj, f = AverageReservoirLevel(R, inflow_data)
+WeeklyAverageReservoirLevels = Dict(week => Dict(r => mean(AverageReservoirLevel(R, inflow_data)[1][r][(week-1)*7 + 1: week * 7]) for r in R) for week in 1:52)
 cuts = Dict(j => ReservoirLevelCuts(R, j.plants, j, f, currentweek, stage_count_short) for j in J)
 Others = Dict(j => OtherParticipant(J,j,R)[1] for j in J)
 cutsOther = Dict(j => ReservoirLevelCuts(R, Others[j].plants, Others[j], f, currentweek, stage_count_short) for j in J)
 WaterCuts = Dict(j => WaterValueCuts(R, j, MediumModelDictionary_j_loaded[j], cuts[j], currentweek) for j in J)
 WaterCutsOther = Dict(j => WaterValueCuts(R, Others[j], MediumModelDictionary_O_loaded[j], cutsOther[j], currentweek) for j in J)
+Initial_Reservoir = WeeklyAverageReservoirLevels[currentweek]
+Initial_Individual_Reservoir = Dict{Participant, Dict{Reservoir, Float64}}(j => WeeklyAverageReservoirLevels[currentweek] for j in J)
+
 
 Qadjs = create_Qadjs(R, K , 3)
-Obligations, price, Qnoms = create_Obligations(T, J, R, Strategy, price_data, inflow_data, cuts, cutsOther, WaterCuts, WaterCutsOther, iteration_count_short, mu_up, mu_down, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek)
-DisruptedNominations = Dict(j => ShortTermProblemParametrized(R, K, j, Qnoms, Obligations, cuts, cutsOther, WaterCuts, WaterCutsOther, mu_up, mu_down, price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, stage_count_short) for j in J)
+Obligations, price, Qnoms = create_Obligations(T, J, R, Strategy, price_data, inflow_data, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_short, mu_up, mu_down, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek)
+println("Obligations: $(Obligations)")
+println("Price: $(price)")
+println("Nominations: $(Qnoms)")
+DisruptedNominations = Dict(j => ShortTermProblemParametrized(R, K, j, Qnoms, Obligations, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, mu_up, mu_down, price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, stage_count_short) for j in J)
+
+"""
+function ResultsToDataframeScheduling()
+
+    To save the results for later analysis, organize them inside a DataFrame.
+    This is also helpful to do some statisical analysis, with functions from DataFrames.jl
+"""
+function ResultsToDataframeScheduling(savepath, J, R, Obligations, price, Qnoms, DisruptedNominations, currentweek)
+    return
+end

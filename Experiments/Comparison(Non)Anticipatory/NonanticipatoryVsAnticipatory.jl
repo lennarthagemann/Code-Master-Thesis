@@ -51,7 +51,6 @@ const stage_count_bidding = 2
 const stage_count_medium = 52
 const price_point_count = 5
 const T = 24
-const currentweek = 2
 const iteration_count_short = 20
 const iteration_count_bidding = 10
 const iteration_count_medium = 1000
@@ -120,13 +119,14 @@ function AnticipatoryVsNonanticipatory(R::Vector{Reservoir},J::Vector{Participan
     l_inds = Dict{Dict{Participant, String}, Dict{Participant, Dict{Reservoir, Float64}}}()
     Obligations = Dict{Dict{Participant, String}, Dict{Participant, Vector{Float64}}}()
     for strat in Strategy_Combinations
+        println("Current Strat: \n$(strat)")
         for r in R
             r.currentvolume = Initial_Reservoir[r]
             for j in J
                 j.individualreservoir[r] = Initial_Individual_Reservoir[j][r]
             end
         end
-        HourlyBiddingCurves, Qnoms1, Ω1, PPoints = FirstLayerSimulation(J, R, strat, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_bidding, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek)
+        HourlyBiddingCurves, Qnoms1, Ω1, PPoints = FirstLayerSimulation(J, R, strat, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_bidding, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek; printlevel = 0)
         price = Ω1[J[1]][stage_count_bidding][rand(1:scenario_count_prices)].price
         inflow = Dict(r => Inflow_Scenarios_Short(inflow_data, currentweek, R, stage_count_short, scenario_count_inflows)[1][r][1] for r in R)
         Obligation = MarketClearing(price, HourlyBiddingCurves, PPoints, J, T)
@@ -157,34 +157,12 @@ function AnticipatoryVsNonanticipatory(R::Vector{Reservoir},J::Vector{Participan
 end
 
 
-
-Weeks = [2, 15, 25 ,36, 40, 48]
-"""
-function AnticipatoryVsNonanticipatoryWeekly()
-
-
-"""
-function AnticipatoryVsNonanticipatoryWeekly(R::Vector{Reservoir},J::Vector{Participant}, mu_up::Float64, mu_down::Float64, inflow_data::DataFrame, price_data::DataFrame,
-    Initial_Reservoir::Dict{Reservoir, Float64}, Initial_Individual_Reservoir::Dict{Participant, Dict{Reservoir, Float64}}, MediumModel_j::Dict{Participant, SDDP.PolicyGraph{Int64}}, MediumModel_O::Dict{Participant, SDDP.PolicyGraph{Int64}},
-    currentweek::Int64, scenario_count_prices::Int64, scenario_count_inflows::Int64, iteration_count_bidding::Int64, iteration_count_short::Int64, Weeks)
-    for week in Weeks
-        Qnoms_Bidding, Obligations, Qnoms_Scheduling, Qadjs, P_Swaps, z_ups, z_downs, Individual_Revenues, l_reals, l_inds = AnticipatoryVsNonanticipatory(R, J, mu_up, mu_down, inflow_data, price_data,
-        Initial_Reservoir[week], Initial_Individual_Reservoir[week], MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, week, scenario_count_prices, scenario_count_inflows, iteration_count_bidding, iteration_count_short)
-    end
-    return
-end
-Initial_Reservoir = Dict{Reservoir, Float64}(r => r.currentvolume for r in R)
-Initial_Individual_Reservoir = Dict{Participant, Dict{Reservoir, Float64}}(j => Dict(r => j.individualreservoir[r] for r in R) for j in J)
-
-Qnoms_Bidding, Obligations, Qnoms_Scheduling, Qadjs, P_Swaps, z_ups, z_downs, Individual_Revenues, l_reals, l_inds = AnticipatoryVsNonanticipatory(R, J, mu_up, mu_down, inflow_data, price_data,
-Initial_Reservoir, Initial_Individual_Reservoir, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, currentweek, scenario_count_prices, scenario_count_inflows, iteration_count_bidding, iteration_count_short)
-
 """
 function ResultsToDataFrame()
-
+    
     To save the results for later analysis, organize them inside a DataFrame.
     This is also helpful to do some statisical analysis, with functions from DataFrames.jl
-"""
+    """
 function ResultsToDataFrame(savepath, J::Vector{Participant}, R::Vector{Reservoir}, Strategy_Combinations, Qnoms_Bidding, Obligations, Qnoms_Scheduling, Qadjs, P_Swaps, z_ups, z_downs, Individual_Revenues, l_reals, l_inds, currentweek::Int64; save = true)
     column_names_df_nominations = ["week", ["Strategy_" * j.name for j in J]..., ["Qnom1_" * j.name * "_" * r.dischargepoint for j in J for r in R]..., ["Qnom2_" * j.name * "_" * r.dischargepoint for j in J for r in R]..., ["Qadj_" * r.dischargepoint for r in R]..., ["P_Swap_" * j.name * "_" * r.dischargepoint for j in J for r in R]...]
     column_types_df_nominations = [Int64, [String for j in J]..., [Float64 for j in J for r in R]..., [Float64 for j in J for r in R]..., [Float64 for r in R]..., [Float64 for j in J for r in R]...]
@@ -192,19 +170,19 @@ function ResultsToDataFrame(savepath, J::Vector{Participant}, R::Vector{Reservoi
     column_types_df_Obligations = [Int64, [String for j in J]..., [Vector{Float64} for j in J]..., [Vector{Float64} for j in J]..., [Vector{Float64} for j in J]..., [Float64 for j in J]...]
     column_names_df_Reservoirs = ["week", ["Strategy_" * j.name for j in J]...,  ["l_real_" * r.dischargepoint for r in R]..., ["l_ind_" * j.name * "_" * r.dischargepoint for j in J for r in R]...]
     column_types_df_Reservoirs = [Int64, [String for j in J]...,  [Float64 for r in R]..., [Float64 for j in J for r in R]...,]
-
+    
     if isfile(savepath * "\\Nominations.csv")
-        # File exists, you can attempt to load the DataFrame from the file
+        # File exists, attempt to load the DataFrame from the file
         df_nominations = CSV.File(savepath * "\\Nominations.csv", types = column_types_df_nominations) |> DataFrame
         df_Obligations = CSV.File(savepath * "\\Obligations.csv", types = column_types_df_Obligations) |> DataFrame
-        df_Reservoirs = CSV.File(savepath * "\\Reservoirs.csv", types = column_types_df_Reservoirs) |> DataFrame
-        println("DataFrame already exists. Add input parameters as new data...")
-        println(eltype.(eachcol(df_nominations)))
-        @assert names(df_nominations) == column_names_df_nominations
-        @assert (eltype.(eachcol(df_nominations))) == column_types_df_nominations
-        @assert names(df_Obligations) == column_names_df_Obligations
-        @assert (eltype.(eachcol(df_Obligations))) == column_types_df_Obligations
-        @assert names(df_Reservoirs) == column_names_df_Reservoirs
+    df_Reservoirs = CSV.File(savepath * "\\Reservoirs.csv", types = column_types_df_Reservoirs) |> DataFrame
+    println("DataFrame already exists. Add input parameters as new data...")
+    println(eltype.(eachcol(df_nominations)))
+    @assert names(df_nominations) == column_names_df_nominations
+    @assert (eltype.(eachcol(df_nominations))) == column_types_df_nominations
+    @assert names(df_Obligations) == column_names_df_Obligations
+    @assert (eltype.(eachcol(df_Obligations))) == column_types_df_Obligations
+    @assert names(df_Reservoirs) == column_names_df_Reservoirs
         @assert (eltype.(eachcol(df_Reservoirs))) == column_types_df_Reservoirs
     else
         # File doesn't exist
@@ -225,7 +203,7 @@ function ResultsToDataFrame(savepath, J::Vector{Participant}, R::Vector{Reservoi
         println(names(df_Obligations))
         println(names(df_Reservoirs))
     end
-    
+
     for strat in Strategy_Combinations
         println(strat)
         row_nominations = (week = currentweek,
@@ -298,4 +276,16 @@ function ResultsToDataFrame(savepath, J::Vector{Participant}, R::Vector{Reservoi
     return df_nominations, df_Obligations, df_Reservoirs
 end
 
-df_nominations, df_Obligations, df_Reservoirs = ResultsToDataFrame(savepath_experiment, J, R, Strategy_Combinations, Qnoms_Bidding, Obligations, Qnoms_Scheduling, Qadjs, P_Swaps, z_ups, z_downs, Individual_Revenues, l_reals, l_inds, currentweek)
+Weeks = [15, 20, 30, 40, 45, 50]
+WeeklyAverageReservoirLevels = Dict(week => Dict(r => mean(AverageReservoirLevel(R, inflow_data)[1][r][(week-1)*7 + 1: week * 7]) for r in R) for week in 1:52)
+for week in Weeks
+    currentweek = week
+    Initial_Reservoir = WeeklyAverageReservoirLevels[currentweek]
+    Initial_Individual_Reservoir = Dict{Participant, Dict{Reservoir, Float64}}(j => WeeklyAverageReservoirLevels[currentweek] for j in J)
+
+
+    Qnoms_Bidding, Obligations, Qnoms_Scheduling, Qadjs, P_Swaps, z_ups, z_downs, Individual_Revenues, l_reals, l_inds = AnticipatoryVsNonanticipatory(R, J, mu_up, mu_down, inflow_data, price_data,
+    Initial_Reservoir, Initial_Individual_Reservoir, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, currentweek, scenario_count_prices, scenario_count_inflows, iteration_count_bidding, iteration_count_short)
+
+    df_nominations, df_Obligations, df_Reservoirs = ResultsToDataFrame(savepath_experiment, J, R, Strategy_Combinations, Qnoms_Bidding, Obligations, Qnoms_Scheduling, Qadjs, P_Swaps, z_ups, z_downs, Individual_Revenues, l_reals, l_inds, currentweek)
+end
