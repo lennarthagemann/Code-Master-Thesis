@@ -23,6 +23,7 @@ using Plots
 using CSV
 using JSON
 using Tables
+import Base
 import Random: randperm
 try
     using Revise
@@ -54,6 +55,20 @@ const currentweek = 2
 const iteration_count_short = 20
 const iteration_count_bidding = 10
 const iteration_count_medium = 1000
+
+# Overload the parse function to handle Vector{Float64}
+Base.parse(::Type{Vector{Float64}}, s::AbstractString) = parse_vector_string(s)
+Base.tryparse(::Type{Vector{Float64}}, s::AbstractString) = parse_vector_string(s)
+
+# Custom function to parse the string into a Vector{Float64}
+function parse_vector_string(s::AbstractString)
+    values_str = replace(s, r"[\[\]]" => "")
+    values = split(values_str, ",")
+
+    # Convert the string elements to Float64 and create a Vector{Float64}
+    vector_obj = parse.(Float64, values)
+    return vector_obj
+end
 
 price_data = prepare_pricedata(filepath_prices)
 inflow_data = prepare_inflowdata(filepath_inflows)
@@ -182,7 +197,7 @@ function ResultsToDataFrame(savepath, J::Vector{Participant}, R::Vector{Reservoi
         # File exists, you can attempt to load the DataFrame from the file
         df_nominations = CSV.File(savepath * "\\Nominations.csv", types = column_types_df_nominations) |> DataFrame
         df_Obligations = CSV.File(savepath * "\\Obligations.csv", types = column_types_df_Obligations) |> DataFrame
-        df_Reservoirs = CSV.File(savepath * "\\Reservoirs.csv", types = column_rypes_df_Reservoirs) |> DataFrame
+        df_Reservoirs = CSV.File(savepath * "\\Reservoirs.csv", types = column_types_df_Reservoirs) |> DataFrame
         println("DataFrame already exists. Add input parameters as new data...")
         println(eltype.(eachcol(df_nominations)))
         @assert names(df_nominations) == column_names_df_nominations
@@ -206,6 +221,9 @@ function ResultsToDataFrame(savepath, J::Vector{Participant}, R::Vector{Reservoi
         for (name, type) in zip(column_names_df_Reservoirs, column_types_df_Reservoirs)
             df_Reservoirs[!, name] = Vector{type}()
         end
+        println(names(df_nominations))
+        println(names(df_Obligations))
+        println(names(df_Reservoirs))
     end
     
     for strat in Strategy_Combinations
@@ -214,26 +232,27 @@ function ResultsToDataFrame(savepath, J::Vector{Participant}, R::Vector{Reservoi
         Strategy_Sydkraft = strat[J[1]],
         Strategy_Fortum = strat[J[2]],
         Strategy_Statkraft = strat[J[3]],
-        Qnom1_Sydkraft_Flasjon = Qnoms_Bidding[strat][participant = J[1], reservoir = R[1]],
-        Qnom1_Sydkraft_Holmsjon = Qnoms_Bidding[strat][participant = J[1], reservoir = R[2]],
-        Qnom1_Fortum_Flasjon = Qnoms_Bidding[strat][participant = J[2], reservoir = R[1]],
-        Qnom1_Fortum_Holmsjon = Qnoms_Bidding[strat][participant = J[2], reservoir = R[2]],
-        Qnom1_Statkraft_Flasjon = Qnoms_Bidding[strat][participant = J[3], reservoir = R[1]],
-        Qnom1_Statkraft_Holmsjon = Qnoms_Bidding[strat][participant = J[3], reservoir = R[2]],
-        Qnom2_Sydkraft_Flasjon = Qnoms_Scheduling[strat][participant = J[1], reservoir = R[1]],
-        Qnom2_Sydkraft_Holmsjon = Qnoms_Scheduling[strat][participant = J[1], reservoir = R[2]],
-        Qnom2_Fortum_Flasjon = Qnoms_Scheduling[strat][participant = J[2], reservoir = R[1]],
-        Qnom2_Fortum_Holmsjon = Qnoms_Scheduling[strat][participant = J[2], reservoir = R[2]],
-        Qnom2_Statkfraft_Flasjon = Qnoms_Scheduling[strat][participant = J[3], reservoir = R[1]],
-        Qnom2_Statkraft_Holmsjon = Qnoms_Scheduling[strat][participant = J[3], reservoir = R[2]],
+        Qnom1_Sydkraft_Flasjon = Qnoms_Bidding[strat][(participant = J[1], reservoir = R[1])],
+        Qnom1_Sydkraft_Holmsjon = Qnoms_Bidding[strat][(participant = J[1], reservoir = R[2])],
+        Qnom1_Fortum_Flasjon = Qnoms_Bidding[strat][(participant = J[2], reservoir = R[1])],
+        Qnom1_Fortum_Holmsjon = Qnoms_Bidding[strat][(participant = J[2], reservoir = R[2])],
+        Qnom1_Statkraft_Flasjon = Qnoms_Bidding[strat][(participant = J[3], reservoir = R[1])],
+        Qnom1_Statkraft_Holmsjon = Qnoms_Bidding[strat][(participant = J[3], reservoir = R[2])],
+        Qnom2_Sydkraft_Flasjon = Qnoms_Scheduling[strat][(participant = J[1], reservoir = R[1])],
+        Qnom2_Sydkraft_Holmsjon = Qnoms_Scheduling[strat][(participant = J[1], reservoir = R[2])],
+        Qnom2_Fortum_Flasjon = Qnoms_Scheduling[strat][(participant = J[2], reservoir = R[1])],
+        Qnom2_Fortum_Holmsjon = Qnoms_Scheduling[strat][(participant = J[2], reservoir = R[2])],
+        Qnom2_Statkraft_Flasjon = Qnoms_Scheduling[strat][(participant = J[3], reservoir = R[1])],
+        Qnom2_Statkraft_Holmsjon = Qnoms_Scheduling[strat][(participant = J[3], reservoir = R[2])],
         Qadj_Flasjon = Qadjs[strat][R[1]],
         Qadj_Holmsjon = Qadjs[strat][R[2]],
-        P_Swap_Sydkraft_Flasjon = P_Swaps[strat][participant = J[1], reservoir = R[1]],
-        P_Swap_Sydkraft_Holmsjon = P_Swaps[strat][participant = J[1], reservoir = R[2]],
-        P_Swap_Fortum_Flasjon = P_Swaps[strat][participant = J[2], reservoir = R[1]],
-        P_Swap_Fortum_Holmsjon = P_Swaps[strat][participant = J[2], reservoir = R[2]],
-        P_Swap_Statkfraft_Flasjon = P_Swaps[strat][participant = J[3], reservoir = R[1]],
-        P_Swap_Statkfraft_Holmsjon = P_Swaps[strat][participant = J[3], reservoir = R[2]])
+        P_Swap_Sydkraft_Flasjon = P_Swaps[strat][J[1]][R[1]],
+        P_Swap_Sydkraft_Holmsjon = P_Swaps[strat][J[1]][R[2]],
+        P_Swap_Fortum_Flasjon = P_Swaps[strat][J[2]][R[1]],
+        P_Swap_Fortum_Holmsjon = P_Swaps[strat][J[2]][R[2]],
+        P_Swap_Statkraft_Flasjon = P_Swaps[strat][J[3]][R[1]],
+        P_Swap_Statkraft_Holmsjon = P_Swaps[strat][J[3]][R[2]]
+        )
         row_Obligations = (week = currentweek,
         Strategy_Sydkraft = strat[J[1]],
         Strategy_Fortum = strat[J[2]],
@@ -247,9 +266,9 @@ function ResultsToDataFrame(savepath, J::Vector{Participant}, R::Vector{Reservoi
         z_down_Sydkraft = z_downs[strat][J[1]],
         z_down_Fortum = z_downs[strat][J[2]],
         z_down_Statkraft = z_downs[strat][J[3]],
-        Revenue_Sydkraft = Individual_Revenues[strat[J[1]]],
-        Revenue_Fortum = Individual_Revenues[strat[J[2]]],
-        Revenue_Statkraft = Individual_Revenues[strat[J[3]]]
+        Revenue_Sydkraft = Individual_Revenues[strat][J[1]],
+        Revenue_Fortum = Individual_Revenues[strat][J[2]],
+        Revenue_Statkraft = Individual_Revenues[strat][J[3]]
         )
         row_Reservoirs = (week = currentweek,
         Strategy_Sydkraft = strat[J[1]],
@@ -271,6 +290,7 @@ function ResultsToDataFrame(savepath, J::Vector{Participant}, R::Vector{Reservoi
 
     if save == true
         println("Results will be saved at $(savepath)...")
+        println(df_Obligations)
         CSV.write(savepath * "\\Nominations.csv", df_nominations)
         CSV.write(savepath * "\\Obligations.csv", df_Obligations)
         CSV.write(savepath * "\\Reservoirs.csv", df_Reservoirs)
