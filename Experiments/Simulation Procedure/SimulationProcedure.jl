@@ -34,6 +34,21 @@ end
 includet(pwd() * "\\Water_Regulation\\WaterRegulation.jl")
 using .WaterRegulation
 
+# Overload the parse function to handle Vector{Float64}
+Base.parse(::Type{Vector{Float64}}, s::AbstractString) = parse_vector_string(s)
+Base.tryparse(::Type{Vector{Float64}}, s::AbstractString) = parse_vector_string(s)
+
+# Custom function to parse the string into a Vector{Float64}
+function parse_vector_string(s::AbstractString)
+    values_str = replace(s, r"[\[\]]" => "")
+    values = split(values_str, ",")
+
+    # Convert the string elements to Float64 and create a Vector{Float64}
+    vector_obj = parse.(Float64, values)
+    return vector_obj
+end
+
+
 const filepath_Ljungan = pwd() * "\\Water_Regulation\\TestDataWaterRegulation\\Ljungan.json"
 const filepath_prices = pwd() * "\\Inflow Forecasting\\Data\\Spot Prices\\prices_df.csv"
 const filepath_inflows = pwd() * "\\Inflow Forecasting\\Data\\Inflow\\Data from Flasjoen and Holmsjoen.csv"

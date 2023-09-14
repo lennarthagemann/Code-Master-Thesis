@@ -12,7 +12,8 @@ using CSV
 using Dates
 using Distributions
 export HydropowerPlant, Reservoir, Participant, adjust_flow!, calculate_balance, update_reservoir!, update_ind_reservoir!, update_ind_reservoir_participant!, Calculate_Ersmax, Calculate_POver, power_swap, find_us_reservoir, find_ds_reservoirs, connect_reservoirs, read_nomination, read_data, water_regulation, OtherParticipant, CalculateQmax, Calculate_Qover, partAvg, SimplePartAvg, SumPartAvg, calculate_produced_power, total_power, Nonanticipatory_Bidding, Anticipatory_Bidding, FirstLayerSimulation, SecondLayerSimulation, ShortTermScheduling, ThirdLayerSimulation, RealTimeBalancing, MediumTermModel, SingleOwnerMediumTermModel, SingleOwnerBidding, SingleOwnerScheduling, WaterValueCuts, WaterValueCutsSingle, prepare_pricedata, prepare_inflowdata, Inflow_Scenarios_Short, Inflow_Scenarios_Medium, Price_Scenarios_Medium, BalanceParameters, Price_Scenarios_Short, Create_Price_Points, create_Ω_Nonanticipatory, create_Ω_Anticipatory, create_Ω_medium, ReservoirLevelCuts, ReservoirLevelCutsSingle, CalculateReferenceFlow, AverageReservoirLevel, MediumModelsAllParticipants, SaveMediumModel, ReadMediumModel, ReadMediumModelSingle, MarketClearing, MarketClearingSolo, OthersNomination, Final_Revenue, Final_Revenue_Solo
- 
+
+
 mutable struct Reservoir
     dischargepoint::String
     totalvolume::Float64
