@@ -43,7 +43,7 @@ R, K, J = read_data(filepath_Ljungan)
 
 const ColumnReservoir = Dict(r => r.dischargepoint * " Inflow" for r in R)
 const scenario_count_inflows = 1
-const scenario_count_prices = 10
+const scenario_count_prices = 20
 const scenario_count_prices_medium = 3
 const scenario_count_inflows_weekly = 3
 const stage_count_short = 2
@@ -175,14 +175,14 @@ function ResultsToDataFrame(savepath, J::Vector{Participant}, R::Vector{Reservoi
         # File exists, attempt to load the DataFrame from the file
         df_nominations = CSV.File(savepath * "\\Nominations.csv", types = column_types_df_nominations) |> DataFrame
         df_Obligations = CSV.File(savepath * "\\Obligations.csv", types = column_types_df_Obligations) |> DataFrame
-    df_Reservoirs = CSV.File(savepath * "\\Reservoirs.csv", types = column_types_df_Reservoirs) |> DataFrame
-    println("DataFrame already exists. Add input parameters as new data...")
-    println(eltype.(eachcol(df_nominations)))
-    @assert names(df_nominations) == column_names_df_nominations
-    @assert (eltype.(eachcol(df_nominations))) == column_types_df_nominations
-    @assert names(df_Obligations) == column_names_df_Obligations
-    @assert (eltype.(eachcol(df_Obligations))) == column_types_df_Obligations
-    @assert names(df_Reservoirs) == column_names_df_Reservoirs
+        df_Reservoirs = CSV.File(savepath * "\\Reservoirs.csv", types = column_types_df_Reservoirs) |> DataFrame
+        println("DataFrame already exists. Add input parameters as new data...")
+        println(eltype.(eachcol(df_nominations)))
+        @assert names(df_nominations) == column_names_df_nominations
+        @assert (eltype.(eachcol(df_nominations))) == column_types_df_nominations
+        @assert names(df_Obligations) == column_names_df_Obligations
+        @assert (eltype.(eachcol(df_Obligations))) == column_types_df_Obligations
+        @assert names(df_Reservoirs) == column_names_df_Reservoirs
         @assert (eltype.(eachcol(df_Reservoirs))) == column_types_df_Reservoirs
     else
         # File doesn't exist
@@ -282,10 +282,7 @@ for week in Weeks
     currentweek = week
     Initial_Reservoir = WeeklyAverageReservoirLevels[currentweek]
     Initial_Individual_Reservoir = Dict{Participant, Dict{Reservoir, Float64}}(j => WeeklyAverageReservoirLevels[currentweek] for j in J)
-
-
     Qnoms_Bidding, Obligations, Qnoms_Scheduling, Qadjs, P_Swaps, z_ups, z_downs, Individual_Revenues, l_reals, l_inds = AnticipatoryVsNonanticipatory(R, J, mu_up, mu_down, inflow_data, price_data,
     Initial_Reservoir, Initial_Individual_Reservoir, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, currentweek, scenario_count_prices, scenario_count_inflows, iteration_count_bidding, iteration_count_short)
-
     df_nominations, df_Obligations, df_Reservoirs = ResultsToDataFrame(savepath_experiment, J, R, Strategy_Combinations, Qnoms_Bidding, Obligations, Qnoms_Scheduling, Qadjs, P_Swaps, z_ups, z_downs, Individual_Revenues, l_reals, l_inds, currentweek)
 end

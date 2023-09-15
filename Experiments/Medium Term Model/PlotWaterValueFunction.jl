@@ -33,9 +33,11 @@ const ColumnReservoir = Dict{Reservoir, String}(R[1] => "Flasjon Inflow", R[2] =
 const stage_count_short = 2
 const week = 2
 
-const NameToParticipant = Dict{String, Participant}(j.name => j for j in J)
-MediumModelDictionary_j_loaded = ReadMediumModel(savepath_watervalue * "\\Participant.jls", NameToParticipant);
-MediumModelDictionary_O_loaded = ReadMediumModel(savepath_watervalue * "\\OtherParticipant.jls", NameToParticipant);
+NameToParticipant = Dict{String, Participant}(j.name => j for j in J)
+PriceScenariosMedium = Price_Scenarios_Medium(price_data, scenario_count_prices_medium)
+InflowScenariosMedium = Inflow_Scenarios_Medium(inflow_data, ColumnReservoir, scenario_count_inflows_weekly, R)
+Ω_medium, P_medium =  create_Ω_medium(PriceScenariosMedium, InflowScenariosMedium, R);
+MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded  = ReadMediumModel(savepath_watervalue, J, R, Ω_medium, P_medium, stage_count_medium, iteration_count_medium);
 
 cuts_j = Dict(j => ReservoirLevelCuts(R, j.plants, j, f, 2, stage_count_short) for j in J)
 Others = Dict(j => OtherParticipant(J,j,R)[1] for j in J)
@@ -49,7 +51,7 @@ function SurfaceWaterValue(all_res::Vector{Reservoir}, V::SDDP.ValueFunction, j:
     if length(R) > 1
         bounds_1 = LinRange(0.0, R[1].currentvolume, 100)
         bounds_2 = LinRange(0.0, R[2].currentvolume, 100)
-        f(x, y) = SDDP.evaluate(V, (Symbol("l[Holsmjon]") => y, Symbol("l[Flasjon]") => x))[1]
+        f(x, y) = SDDP.evaluate(V, (Symbol("l[Holmsjon]") => y, Symbol("l[Flasjon]") => x))[1]
         surface(bounds_1, bounds_2, f, legend = false)
     else
         bounds_1 = LinRange(0.0, R[1].curremtvolume, 100)

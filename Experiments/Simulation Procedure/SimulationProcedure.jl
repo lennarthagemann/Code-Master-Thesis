@@ -53,7 +53,7 @@ const filepath_Ljungan = pwd() * "\\Water_Regulation\\TestDataWaterRegulation\\L
 const filepath_prices = pwd() * "\\Inflow Forecasting\\Data\\Spot Prices\\prices_df.csv"
 const filepath_inflows = pwd() * "\\Inflow Forecasting\\Data\\Inflow\\Data from Flasjoen and Holmsjoen.csv"
 const savepath_watervalue = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Inflow Forecasting\\WaterValue"
-
+const savepath_results = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Experiments\\Results\\SingleVsIndividual\\SingleVsIndividual.csv"
 R, K, J = read_data(filepath_Ljungan)
 
 const ColumnReservoir = Dict(r => r.dischargepoint * " Inflow" for r in R)
@@ -66,7 +66,8 @@ const stage_count_bidding = 2
 const stage_count_medium = 52
 const price_point_count = 5
 const T = 24
-const currentweek = 2
+const days = 7
+const currentweek = 50
 const iteration_count_short = 50
 const iteration_count_bidding = 100
 const iteration_count_medium = 1000
@@ -161,6 +162,10 @@ function Comparison_Single_VF(R::Vector{Reservoir},J::Vector{Participant}, mu_up
     Qnoms = Dict{Reservoir, Float64}[]
     Qnoms_individual = Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}[]
     P_Swaps = Dict{Participant, Dict{Reservoir, Float64}}[]
+    Obligations = Dict{Participant, Vector{Float64}}[]
+    Obligations_solo = Vector{Float64}[]
+    z_ups = Dict{Participant, Float64}[]
+    z_downs = Dict{Participant, Float64}[]
     l_single = Dict(r => Initial_Reservoir[r] for r in R)
     for r in R
         r.currentvolume = Initial_Reservoir[r]
@@ -168,7 +173,8 @@ function Comparison_Single_VF(R::Vector{Reservoir},J::Vector{Participant}, mu_up
             j.individualreservoir[r] = Initial_Individual_Reservoir[j][r]
         end
     end
-    for day in 1:7
+    for day in 1:days
+        println("current day: ", day)
         # Reservoir Parameters
         Qref = CalculateReferenceFlow(R, l_traj, f, currentweek)
         # Water Value Function(s)
@@ -182,45 +188,50 @@ function Comparison_Single_VF(R::Vector{Reservoir},J::Vector{Participant}, mu_up
         # Bidding Problem: Single Owner and Indiviual Problems
         Ω_single, P_single, _, _= create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, R, stage_count_bidding)
         PPoints_single = Create_Price_Points(Ω_single, scenario_count_prices, T, mu_up)
-        HourlyBiddingCurve = SingleOwnerBidding(R, Initial_Reservoir, K, PPoints_single, Ω_single, P_single , cuts_single, WaterCuts_single, mu_up, mu_down, iteration_count_bidding, T, stage_count_bidding)
+        HourlyBiddingCurve = SingleOwnerBidding(R, l_single, K, PPoints_single, Ω_single, P_single , cuts_single, WaterCuts_single, mu_up, mu_down, iteration_count_bidding, T, stage_count_bidding)
         HourlyBiddingCurves, Qnoms1, Ω1, PPoints = FirstLayerSimulation(J, R, Strategy, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_short, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek)
         # Realization of uncertain parameters: inflow and price
         price = create_Ω_Nonanticipatory(price_data, inflow_data, 1, 1, currentweek, R, stage_count_bidding)[1][stage_count_bidding][1].price
         inflow_array = Inflow_Scenarios_Short(inflow_data, currentweek, R, stage_count_short, 1)[1]
         inflow = Dict(r => inflow_array[r][1] for r in R)
         # Market Clearing
-        Obligation = MarketClearingSolo(price, HourlyBiddingCurve, PPoints_single, T)
-        Obligations = MarketClearing(price, HourlyBiddingCurves, PPoints, J, T)
+        Obligation_solo = MarketClearingSolo(price, HourlyBiddingCurve, PPoints_single, T)
+        Obligation = MarketClearing(price, HourlyBiddingCurves, PPoints, J, T)
         # Single Owner Scheduling
-        Qnom, z_up, z_down = SingleOwnerScheduling(R, l_single, K, Obligation, price, inflow_array, Ω_single, P_single, cuts_single, WaterCuts_single, mu_up, mu_down, iteration_count_short, T, stage_count_short)
+        Qnom, z_up_solo, z_down_solo = SingleOwnerScheduling(R, l_single, K, Obligation_solo, price, inflow_array, Ω_single, P_single, cuts_single, WaterCuts_single, mu_up, mu_down, iteration_count_short, T, stage_count_short)
         
         # Individual Scheduling: Two Optimization problems and water regulation procedure (includes reservoir update)
         Qadj1, _, P_Swap1, _, _, _ = water_regulation(Qnoms1, Qref, inflow, false)
-        Qnoms2 = SecondLayerSimulation(J, R, Qnoms1, Qadj1, Obligations, price, price_data, inflow_data, Qref, cuts,  WaterCuts, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_short, mu_up, mu_down, T, stage_count_short, scenario_count_prices, scenario_count_inflows, currentweek)
+        Qnoms2 = SecondLayerSimulation(J, R, Qnoms1, Qadj1, Obligation, price, price_data, inflow_data, Qref, cuts,  WaterCuts, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_short, mu_up, mu_down, T, stage_count_short, scenario_count_prices, scenario_count_inflows, currentweek)
         Qadj2, _, P_Swap2, _, _, _ = water_regulation(Qnoms2, Qref, inflow, true)
-        z_ups, z_downs = ThirdLayerSimulation(J, R, Qadj2, P_Swap2, Obligations, mu_up, mu_down, T)
+        z_up, z_down = ThirdLayerSimulation(J, R, Qadj2, P_Swap2, Obligation, mu_up, mu_down, T)
         #Reservoir Update (Single Owner)
         Initial_Reservoir = Dict{Reservoir, Float64}(r => r.currentvolume for r in R)
         for r in R
             l_single[r] = l_single[r] + inflow[r] - Qnom[r]
             for j in J
-                Initial_Individual_Reservoir[j][r] = j.individualreservoir[r]
+                Initial_Individual_Reservoir[j][r] = j.individualreservoir[r] - Qnoms2[(participant = j, reservoir = r)] + Qref[r]
             end
         end
         # Revenues
-        Individual_Revenue = Final_Revenue(J, price, Obligations, z_ups, z_downs, mu_up, mu_down, T)
-        Revenue_single = Final_Revenue_Solo(price, Obligation, z_up, z_down, mu_up, mu_down, T)
+        Individual_Revenue = Final_Revenue(J, price, Obligation, z_up, z_down, mu_up, mu_down, T)
+        Revenue_single = Final_Revenue_Solo(price, Obligation_solo, z_up_solo, z_down_solo, mu_up, mu_down, T)
+        println(l_single)
         push!(Individual_Revenues, Individual_Revenue)
         push!(Revenues_single, Revenue_single)
         push!(Qnoms, Qnom)
         push!(Qnoms_individual, Qnoms2)
+        push!(Obligations, Obligation)
+        push!(Obligations_solo, Obligation_solo)
         push!(P_Swaps, P_Swap2)
         push!(Qadjs, Qadj2)
-        push!(l_singles, l_single)
+        push!(l_singles, Dict(r => l_single[r] for r in R))
         push!(l_vfs, Initial_Reservoir)
-        push!(l_vf_inds, Initial_Individual_Reservoir)
+        push!(l_vf_inds, Dict(j => Dict(r =>  Initial_Individual_Reservoir[j][r] for r in R) for j in J))
+        push!(z_ups, Dict(j => sum(z_up[j][t] for t in 1:T) for j in J))
+        push!(z_downs, Dict(j => sum(z_down[j][t] for t in 1:T) for j in J))
     end  
-    return Individual_Revenues, Revenues_single, l_singles, l_vfs, l_vf_inds, Qadjs, Qnoms, Qnoms_individual, P_Swaps
+    return Individual_Revenues, Revenues_single, l_singles, l_vfs, l_vf_inds, Qadjs, Qnoms, Qnoms_individual, P_Swaps, Obligations, Obligations_solo, z_ups, z_downs
 end
 
 # HourlyBiddingCurves, Obligations, Qnoms1, Qadj1, P_Swap1, price, Qnoms2, Qadj2, P_Swap2, z_ups, z_downs = ExampleSimulation(R, J, mu_up, mu_down,inflow_data, price_data, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, currentweek, scenario_count_prices)
@@ -235,7 +246,7 @@ function SplitRevenues(J, R, Revenues)
 function SplitRevenues(J::Vector{Participant}, R::Vector{Reservoir}, Revenues::Vector{Float64})::Vector{Dict{Participant, Float64}}
     TotalParticipationRates = Dict{Participant, Float64}(j => sum(j.participationrate[r] for r in R)/(sum(p.participationrate[r] for r in R for p in J)) for j in J)
     println(TotalParticipationRates)
-    SplitRevenue = [Dict{Participant, Float64}(j => TotalParticipationRates[j] * Revenues[t] for j in J) for t in 1:7]
+    SplitRevenue = [Dict{Participant, Float64}(j => TotalParticipationRates[j] * Revenues[t] for j in J) for t in 1:2]
     return SplitRevenue
 end
 
@@ -244,24 +255,123 @@ end
 
 Strategy = Dict(j => "Nonanticipatory" for j in J)
 
-Weeks = [15, 20, 30, 40, 45, 50]
+Weeks = [15]
 WeeklyAverageReservoirLevels = Dict(week => Dict(r => mean(AverageReservoirLevel(R, inflow_data)[1][r][(week-1)*7 + 1: week * 7]) for r in R) for week in 1:52)
-
-Initial_Reservoir = WeeklyAverageReservoirLevels[currentweek]
-Initial_Individual_Reservoir = Dict{Participant, Dict{Reservoir, Float64}}(j => WeeklyAverageReservoirLevels[currentweek] for j in J)
-
-
-
-Individual_Revenues, Revenue_single, l_single, l_vf, l_vf_ind, Qadj, Qnom, Qnoms_individual, P_Swaps = Comparison_Single_VF(R, J, mu_up, mu_down, inflow_data, price_data, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, MediumModelSingle, Initial_Reservoir, Initial_Individual_Reservoir, currentweek, scenario_count_prices, scenario_count_inflows, iteration_count_bidding, Strategy)
-
-Split_Revenues = SplitRevenues(J, R, Revenue_single)
+Individual_Revenues = Dict{Int64, Vector{Dict{Participant, Float64}}}()
+Revenues_single = Dict{Int64, Vector{Float64}}()
+l_singles = Dict{Int64, Vector{Dict{Reservoir, Float64}}}()
+l_vfs = Dict{Int64, Vector{Dict{Reservoir, Float64}}}()
+l_vf_inds = Dict{Int64, Vector{Dict{Participant, Dict{Reservoir, Float64}}}}()
+Qadjs = Dict{Int64, Vector{Dict{Reservoir, Float64}}}()
+Qnoms = Dict{Int64, Vector{Dict{Reservoir, Float64}}}()
+Qnoms_individual = Dict{Int64, Vector{Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}}}()
+P_Swaps = Dict{Int64, Vector{Dict{Participant, Dict{Reservoir, Float64}}}}()
+Split_Revenues = Dict{Int64, Vector{Dict{Participant, Float64}}}()
+Obligations = Dict{Int64, Vector{Dict{Participant, Vector{Float64}}}}()
+Obligations_solo = Dict{Int64, Vector{Vector{Float64}}}()
+z_ups = Dict{Int64, Vector{Dict{Participant, Float64}}}()
+z_downs = Dict{Int64, Vector{Dict{Participant, Float64}}}()
+for week in Weeks
+    println("Current week: $(week)")
+    Initial_Reservoir = copy(WeeklyAverageReservoirLevels[week])
+    Initial_Individual_Reservoir = Dict{Participant, Dict{Reservoir, Float64}}(j => copy(WeeklyAverageReservoirLevels[week]) for j in J)
+    Individual_Revenue, Revenue_single, l_single, l_vf, l_vf_ind, Qadj, Qnom, Qnom_individual, P_Swap, Obligation, Obligation_solo, z_up, z_down = Comparison_Single_VF(R, J, mu_up, mu_down, inflow_data, price_data, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, MediumModelSingle, Initial_Reservoir, Initial_Individual_Reservoir, week, scenario_count_prices, scenario_count_inflows, iteration_count_bidding, Strategy)
+    Split_Revenue = SplitRevenues(J, R, Revenue_single)
+    Individual_Revenues[week] = Individual_Revenue
+    Revenues_single[week] = Revenue_single
+    l_singles[week] = l_single
+    l_vfs[week] = l_vf
+    l_vf_inds[week] = l_vf_ind
+    Qadjs[week] = Qadj
+    Qnoms[week] = Qnom
+    Qnoms_individual[week] = Qnom_individual
+    P_Swaps[week] = P_Swap
+    Split_Revenues[week] = Split_Revenue
+    Obligations[week] = Obligation
+    Obligations_solo[week] = Obligation_solo
+    z_ups[week] = z_up
+    z_downs[week] = z_down
+end
 """
-function ResultsToDataFrame()
+function ResultsToDataFrameSingleVsIndividual()
     
     To save the results for later analysis, organize them inside a DataFrame.
     This is also helpful to do some statisical analysis, with functions from DataFrames.jl
 """
-function ResultsToDataFrameSingleVsIndividual(savepath, J, R, Individual_Revenues, Revenue_single, l_single, l_vf, l_vf_ind, Qadj, Qnom, Qnoms_individual, P_Swaps, Strategy, currentweek)
-
-    return
+function ResultsToDataFrameSingleVsIndividual(savepath, J, R, Strategy, Individual_Revenues, Revenue_single, l_single, l_vf, l_vf_ind, Qadj, Qsingle, Qnoms_individual, P_Swaps, Obligations, Obligations_single, z_ups, z_downs, Weeks::Vector{Int64}; save = true)
+    column_names = ["week", "day", ["Strategy_" * j.name for j in J]..., ["Reservoir_Single_" * r.dischargepoint for r in R]..., ["Reservoir_VF_" * r.dischargepoint for r in R]..., ["Individual_Reservoir_" * j.name * "_" * r.dischargepoint for j in J for r in R]..., ["Qadj_" * r.dischargepoint for r in R]..., ["Q_single_" * r.dischargepoint for r in R]..., ["Qnom_$(j.name)_$(r.dischargepoint)" for j in J for r in R]..., ["P_Swaps_$(j.name)_$(r.dischargepoint)" for j in J for r in R]..., ["Obligations_" * j.name for j in J]...,"Obligations_single", ["VF_Revenues_" * j.name for j in J]..., "Single_Revenue", ["Split_Revenues_" * j.name for j in J]..., ["z_ups_" * j.name for j in J]..., ["z_downs_" * j.name for j in J]... ]
+    column_types = [Int64, Int64, [String for j in J]..., [Float64 for r in R]..., [Float64 for r in R]..., [Float64 for j in J for r in R]..., [Float64 for r in R]..., [Float64 for r in R]..., [Float64 for j in J for r in R]..., [Float64 for j in J for r in R]..., [Vector{Float64} for j in J]..., Vector{Float64},  [Float64 for j in J]..., Float64, [Float64 for j in J]..., [Float64 for j in J]..., [Float64 for j in J]...]
+    @assert length(column_names) == length(column_types)
+    if isfile(savepath)
+        df = CSV.File(savepath, types = column_types) |> DataFrame 
+    else
+        df = DataFrame()
+        for (name, type) in zip(column_names, column_types)
+            df[!, name] = Vector{type}()
+        end
+    end
+    for week in Weeks
+        for day in 1:days
+            row = (
+                week = week,
+                day = day,
+                Strategy_Sydkraft = Strategy[J[1]],
+                Strategy_Fortum = Strategy[J[2]],
+                Strategy_Statkraft = Strategy[J[3]],
+                Reservoir_Single_Flasjon = l_single[week][day][R[1]],
+                Reservoir_Single_Holmsjon = l_single[week][day][R[2]],
+                Reservoir_VF_Flasjon = l_vf[week][day][R[1]],
+                Reservoir_VF_Holmsjon = l_vf[week][day][R[2]],
+                Individual_Reservoir_Sydkraft_Flasjon = l_vf_ind[week][day][J[1]][R[1]],
+                Individual_Reservoir_Sydkraft_Holmsjon = l_vf_ind[week][day][J[1]][R[2]],
+                Individual_Reservoir_Fortum_Flasjon = l_vf_ind[week][day][J[2]][R[1]],
+                Individual_Reservoir_Fortum_Holmsjon = l_vf_ind[week][day][J[2]][R[2]],
+                Individual_Reservoir_Statkraft_Flasjon = l_vf_ind[week][day][J[3]][R[1]],
+                Individual_Reservoir_Statkraft_Holmsjon = l_vf_ind[week][day][J[3]][R[2]],
+                Qadj_Flasjon = Qadj[week][day][R[1]],
+                Qadj_Holmsjon = Qadj[week][day][R[2]],
+                Q_single_Flasjon = Qsingle[week][day][R[1]],
+                Q_single_Holmsjon = Qsingle[week][day][R[2]],
+                Qnom_Sydkraft_Flasjon = Qnoms_individual[week][day][(participant = J[1], reservoir = R[1])], 
+                Qnom_Sydkraft_Holmsjon = Qnoms_individual[week][day][(participant = J[1], reservoir = R[2])], 
+                Qnom_Fortum_Flasjon = Qnoms_individual[week][day][(participant = J[2], reservoir = R[1])], 
+                Qnom_Fortum_Holmsjon = Qnoms_individual[week][day][(participant = J[2], reservoir = R[2])], 
+                Qnom_Statkraft_Flasjon = Qnoms_individual[week][day][(participant = J[3], reservoir = R[1])], 
+                Qnom_Statkraft_Holmsjon = Qnoms_individual[week][day][(participant = J[3], reservoir = R[2])], 
+                P_Swaps_Sydkraft_Flasjon = P_Swaps[week][day][J[1]][R[1]], 
+                P_Swaps_Sydkraft_Holmsjon = P_Swaps[week][day][J[1]][R[2]], 
+                P_Swaps_Fortum_Flasjon = P_Swaps[week][day][J[2]][R[1]], 
+                P_Swaps_Fortum_Holmsjon = P_Swaps[week][day][J[2]][R[2]], 
+                P_Swaps_Statkraft_Flasjon = P_Swaps[week][day][J[3]][R[1]], 
+                P_Swaps_Statkraft_Holmsjon = P_Swaps[week][day][J[3]][R[2]], 
+                Obligations_Sydkraft = Obligations[week][day][J[1]],
+                Obligations_Fortum = Obligations[week][day][J[2]],
+                Obligations_Statkraft = Obligations[week][day][J[3]],
+                Obligations_single = Obligations_single[week][day],
+                VF_Revenues_Sydkraft = Individual_Revenues[week][day][J[1]],
+                VF_Revenues_Fortum = Individual_Revenues[week][day][J[2]],
+                VF_Revenues_Statkraft = Individual_Revenues[week][day][J[3]],
+                Single_Revenue = Revenue_single[week][day],
+                Split_Revenues_Sydkraft = Split_Revenues[week][day][J[1]],
+                Split_Revenues_Fortum = Split_Revenues[week][day][J[2]],
+                Split_Revenues_Statkraft = Split_Revenues[week][day][J[3]],
+                z_ups_Sydkraft = z_ups[week][day][J[1]],
+                z_ups_Fortum = z_ups[week][day][J[2]],
+                z_ups_Statkraft = z_ups[week][day][J[3]],
+                z_downs_Sydkraft = z_downs[week][day][J[1]],
+                z_downs_Fortum = z_downs[week][day][J[2]],
+                z_downs_Statkraft = z_downs[week][day][J[3]]
+            )
+            println(length(names(df)))
+            push!(df, row)
+        end
+    end
+    if save == true
+        println("DataFrame will be saved at $(savepath)...")
+        CSV.write(savepath, df)
+    end
+    return df
 end
+
+
+df_results = ResultsToDataFrameSingleVsIndividual(savepath_results, J, R, Strategy, Individual_Revenues, Revenues_single, l_singles, l_vfs, l_vf_inds, Qadjs, Qnoms, Qnoms_individual, P_Swaps, Obligations, Obligations_solo, z_ups, z_downs, Weeks)

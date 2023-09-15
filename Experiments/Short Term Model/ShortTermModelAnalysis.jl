@@ -52,7 +52,8 @@ const filepath_Ljungan = pwd() * "\\Water_Regulation\\TestDataWaterRegulation\\L
 const filepath_prices = pwd() * "\\Inflow Forecasting\\Data\\Spot Prices\\prices_df.csv"
 const filepath_inflows = pwd() * "\\Inflow Forecasting\\Data\\Inflow\\Data from Flasjoen and Holmsjoen.csv"
 const savepath_watervalue = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Inflow Forecasting\\WaterValue"
-const savepath_results = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Experiments\\Results"
+const savepath_results = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Experiments\\Results\\ShortTermScheduling\\DisruptedNominations.csv"
+const savepath_results_simple = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Experiments\\Results\\ShortTermScheduling\\DisruptedNominationsSimple.csv"
 
 R, K, J = read_data(filepath_Ljungan)
 
@@ -65,7 +66,7 @@ const stage_count_short = 2
 const stage_count_bidding = 2
 const stage_count_medium = 52
 const T = 24
-const currentweek = 2
+const currentweek = 50
 const iteration_count_short = 50
 const iteration_count_Bidding = 100
 const iteration_count_medium = 1000
@@ -213,9 +214,8 @@ function ShortTermProblemParametrizedNomination(R, K, j, Obligation, price_data,
 
 
 """
-function ShortTermProblemParametrized(R::Vector{Reservoir}, K::Vector{HydropowerPlant},J::Vector{Participant}, j::Participant, Qnom_initial::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}, Obligations::Dict{Participant, Vector{Float64}}, cuts, WaterCuts, Initial_Reservoir, Initial_Individual_Reservoir, mu_up, mu_down,  price_data::DataFrame, inflow_data::DataFrame, scenario_count_prices::Int64, scenario_count_inflows::Int64, currentweek::Int64, stage_count_short::Int64, T::Int64, count_adjusted_flows::Int64)
+function ShortTermProblemParametrized(R::Vector{Reservoir}, J::Vector{Participant}, j::Participant, Qnom_initial::Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}, Obligations::Dict{Participant, Vector{Float64}}, cuts, WaterCuts, Initial_Reservoir, Initial_Individual_Reservoir, mu_up, mu_down, price_data::DataFrame, inflow_data::DataFrame, scenario_count_prices::Int64, scenario_count_inflows::Int64, currentweek::Int64, stage_count_short::Int64, T::Int64, Qadjs::Dict{Participant, Vector{Dict{Reservoir, Float64}}})
     println("Current Participant: $(j.name)")
-    Qadjs = create_Qadjs(R, K, count_adjusted_flows)
     Qnoms =  Dict{Dict{Reservoir, Float64}, Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}}()
     QnomOs = Dict{Dict{Reservoir, Float64}, Dict{Participant, Dict{Reservoir, Float64}}}()
     QadjsFinal = Dict{Dict{Reservoir, Float64}, Dict{Reservoir, Float64}}()
@@ -224,8 +224,7 @@ function ShortTermProblemParametrized(R::Vector{Reservoir}, K::Vector{Hydropower
     Revenues = Dict{Dict{Reservoir, Float64}, Float64}()
     l_traj, f = AverageReservoirLevel(R, inflow_data)
     Qref = CalculateReferenceFlow(R, l_traj, f, currentweek)
-    for Qadj in Qadjs
-        println("Current Adjusted Flow before Scheduling: $(Qadj)")
+    for Qadj in Qadjs[j]
         QnomO = OthersNomination(Qnom_initial, Qadj, J, R)
         Qnoms2 = Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}()
         Ω_NA_local, P_NA_local, _, _ = create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, R, stage_count_short)
@@ -241,8 +240,12 @@ function ShortTermProblemParametrized(R::Vector{Reservoir}, K::Vector{Hydropower
             end
         end
         Qadj2, _, P_Swap2, _, _, _ = water_regulation(Qnoms2, Qref, Dict(r => f[r][currentweek] for r in R), false)
+        println("__________________________________________________")
+        println("Current Adjusted Flow before Scheduling: $(Qadj)")
         println("Nomination after Scheduling: $(Qnom)")
+        println("Others Nomination: $(QnomO[j])")
         println("Adjusted Flow after Scheduling: $(Qadj2)")
+        println("__________________________________________________")
         z_up, z_down = ThirdLayerSimulation(J, R, Qadj2, P_Swap2, Obligations, mu_up, mu_down, T)
         Revenue  = Final_Revenue(J, price, Obligations, z_up, z_down, mu_up, mu_down, T)
         Qnoms[Qadj] = Qnoms2
@@ -267,8 +270,11 @@ Initial_Reservoir = WeeklyAverageReservoirLevels[currentweek]
 Initial_Individual_Reservoir = Dict{Participant, Dict{Reservoir, Float64}}(j => WeeklyAverageReservoirLevels[currentweek] for j in J)
 
 
-Qadjs = create_Qadjs(R, K , 2)
-Obligations, price, Qnoms = create_Obligations(T, J, R, Strategy, price_data, inflow_data, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_short, mu_up, mu_down, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek)
+# Qadjs = create_Qadjs(R, K , 2)
+# Obligations, price, Qnoms = create_Obligations(T, J, R, Strategy, price_data, inflow_data, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_short, mu_up, mu_down, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek)
+Obligations, price, Qnoms = create_simple_Obligations(J, R, T, price_data, inflow_data, currentweek, stage_count_bidding)
+Qadjs = create_Qadjs_simple(R, Qnoms, inflow_data, 5, currentweek)
+
 println("Obligations: $(Obligations)")
 println("Price: $(price)")
 println("Nominations: $(Qnoms)")
@@ -279,7 +285,7 @@ z_ups = Dict{Participant, Any}()
 z_downs = Dict{Participant, Any}()
 Revenues = Dict{Participant, Any}()
 for j in J
-    Qnom, QnomO, QadjFinal, z_up, z_down, Revenue = ShortTermProblemParametrized(R, K, J, j, Qnoms, Obligations, cuts, WaterCuts, Initial_Reservoir, Initial_Individual_Reservoir, mu_up, mu_down, price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, stage_count_short, T, 2)
+    Qnom, QnomO, QadjFinal, z_up, z_down, Revenue = ShortTermProblemParametrized(R, J, j, Qnoms, Obligations, cuts, WaterCuts, Initial_Reservoir, Initial_Individual_Reservoir, mu_up, mu_down, price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, stage_count_short, T, Qadjs)
     DisruptedNominations[j] = Qnom
     QnomOs[j] = QnomO
     QadjsFinal[j] = QadjFinal
@@ -297,9 +303,9 @@ function ResultsToDataframeScheduling(savepath, J, R, Obligations, price, Qnoms,
 function ResultsToDataframeScheduling(savepath, J, R, Qadjs, Obligations, price, Revenues, QnomOs, DisruptedNominations, currentweek; save = true)
     column_names = ["week", "Participant", "Obligation", "price", ["Qnom_" * r.dischargepoint for r in R]..., ["QnomO_" * r.dischargepoint for r in R]..., ["Qadj_" * r.dischargepoint for r in R]..., "Revenue", "Upbalancing", "Downbalancing" ] 
     column_types = [Int64, String, Vector{Float64}, Vector{Float64}, [Float64 for r in R]..., [Float64 for r in R]...,  [Float64 for r in R]..., Float64, Float64, Float64]
-    if isfile(savepath * "\\ShortTermScheduling\\DisruptedNominations.csv")
+    if isfile(savepath)
         println("DataFrame already exists. Add new Data....")
-        df = CSV.File(savepath * "\\ShortTermScheduling\\DisruptedNominations.csv", types = column_types) |> DataFrame
+        df = CSV.File(savepath, types = column_types) |> DataFrame
         println(df)
     else
         println("Dataframe does not exist yet. Create DataFrame and fill with data...")
@@ -309,9 +315,8 @@ function ResultsToDataframeScheduling(savepath, J, R, Qadjs, Obligations, price,
         end
         println(names(df))
     end
-    for Qadj in Qadjs
-        println(Qadj[R[1]])
-        for j in J
+    for j in J
+        for Qadj in Qadjs[j]
             row = (
                 week = currentweek,
                 Participant = j.name,
@@ -332,9 +337,9 @@ function ResultsToDataframeScheduling(savepath, J, R, Qadjs, Obligations, price,
     end
     if save == true
         println("Results will be saved at $(savepath)...")
-        CSV.write(savepath * "\\ShortTermScheduling\\DisruptedNominations.csv", df)
+        CSV.write(savepath, df)
     end
     return df
 end
 
-df = ResultsToDataframeScheduling(savepath_results, J, R, Qadjs, Obligations, price, Revenues, QnomOs, DisruptedNominations, currentweek)
+df = ResultsToDataframeScheduling(savepath_results_simple, J, R, Qadjs, Obligations, price, Revenues, QnomOs, DisruptedNominations, currentweek)

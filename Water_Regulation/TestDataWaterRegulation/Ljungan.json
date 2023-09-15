@@ -8,9 +8,9 @@
         },
         {
             "dischargepoint": "Holmsjon",
-            "totalvolume": 2.1e3,
+            "totalvolume": 2.4e3,
             "currentvolume": 1.785e3,
-            "maxvolume":2.1e3
+            "maxvolume":2.4e3
         }
     ],
 
