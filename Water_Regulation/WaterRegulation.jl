@@ -695,6 +695,10 @@ function Nonanticipatory_Bidding(
     R = collect(filter(r -> j.participationrate[r] > 0.0, all_res))
     I = length(PPoints[1]) - 1
 
+    if bounded_bidding
+        println("Nominations are bounded by 75%")
+    end
+
     function subproblem_builder_nonanticipatory(subproblem::Model, node::Int64)
         # State Variables
         @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = Initial_Reservoir[r])
@@ -827,6 +831,9 @@ function Anticipatory_Bidding(
     DualityHandler = SDDP.ContinuousConicDuality(),
     lambda = 10.0)
             
+    if bounded_bidding
+        println("Nominations are bounded by 75%")
+    end
     K_j = j.plants
     O, K_O = OtherParticipant(J, j, all_res)
     R = collect(filter(r -> j.participationrate[r] > 0, all_res))
@@ -968,7 +975,7 @@ function FirstLayerSimulation(J::Vector{Participant},
     Qref::Dict{Reservoir, Float64},
     cuts, cutsOther, WaterCuts, WaterCutsOther,
     Initial_Reservoir, Initial_Individual_Reservoir,
-    iteration_count_short::Int64, mu_up::Float64, mu_down::Float64, T::Int64, stage_count_bidding::Int64, scenario_count_prices::Int64, scenario_count_inflows::Int64, currentweek::Int64; printlevel = 0, stability_report = false)
+    iteration_count_short::Int64, mu_up::Float64, mu_down::Float64, T::Int64, stage_count_bidding::Int64, scenario_count_prices::Int64, scenario_count_inflows::Int64, currentweek::Int64; printlevel = 0, stability_report = false, bounded_bidding = true)
 
     HourlyBiddingCurves = Dict{Participant, Dict{Int64, Vector{Float64}}}()
     Qnoms = Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}()
@@ -979,11 +986,11 @@ function FirstLayerSimulation(J::Vector{Participant},
         Ω_NA_local, P_NA_local, Ω_scenario_local, P_scenario_local = create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, all_res, stage_count_bidding)
         PPoints[j] = Create_Price_Points(Ω_NA_local, scenario_count_prices, T, mu_up)
         if Strategy[j] == "Nonanticipatory"
-            Qnom, HourlyBiddingCurve = Nonanticipatory_Bidding(R, j, PPoints[j], Ω_NA_local, P_NA_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding, Initial_Reservoir, Initial_Individual_Reservoir; printlevel = printlevel, stability_report = stability_report)
+            Qnom, HourlyBiddingCurve = Nonanticipatory_Bidding(R, j, PPoints[j], Ω_NA_local, P_NA_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding, Initial_Reservoir, Initial_Individual_Reservoir; printlevel = printlevel, stability_report = stability_report, bounded_bidding = bounded_bidding)
             HourlyBiddingCurves[j] = HourlyBiddingCurve
         else
             Ω_A_local, P_A_local = create_Ω_Anticipatory(Ω_NA_local, Ω_scenario_local, P_scenario_local, J, j, all_res, PPoints[j], Qref, cutsOther, WaterCutsOther, stage_count_bidding, mu_up, mu_down, T)
-            Qnom, HourlyBiddingCurve = Anticipatory_Bidding(all_res, j, J, PPoints[j], Ω_A_local, P_A_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding, Initial_Reservoir, Initial_Individual_Reservoir; printlevel = printlevel, stability_report = stability_report)
+            Qnom, HourlyBiddingCurve = Anticipatory_Bidding(all_res, j, J, PPoints[j], Ω_A_local, P_A_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding, Initial_Reservoir, Initial_Individual_Reservoir; printlevel = printlevel, stability_report = stability_report, bounded_bidding = bounded_bidding)
             HourlyBiddingCurves[j] = HourlyBiddingCurve
         end
         for r in all_res
@@ -1152,7 +1159,8 @@ function SecondLayerSimulation(J::Vector{Participant},
     stage_count_short::Int64,
     scenario_count_prices::Int64,
     scenario_count_inflows::Int64,
-    currentweek::Int64)
+    currentweek::Int64,
+    )
     
     QnomO1 = OthersNomination(Qnoms1, Qadj1, J, R)
     Qnoms2 = Dict{NamedTuple{(:participant, :reservoir), Tuple{Participant, Reservoir}}, Float64}()

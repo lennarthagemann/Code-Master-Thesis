@@ -171,11 +171,11 @@ function ResultsToDataFrame(savepath, J::Vector{Participant}, R::Vector{Reservoi
     column_names_df_Reservoirs = ["week", ["Strategy_" * j.name for j in J]...,  ["l_real_" * r.dischargepoint for r in R]..., ["l_ind_" * j.name * "_" * r.dischargepoint for j in J for r in R]...]
     column_types_df_Reservoirs = [Int64, [String for j in J]...,  [Float64 for r in R]..., [Float64 for j in J for r in R]...,]
     
-    if isfile(savepath * "\\Nominations.csv")
+    if isfile(savepath * "\\NominationsBounded.csv")
         # File exists, attempt to load the DataFrame from the file
-        df_nominations = CSV.File(savepath * "\\Nominations.csv", types = column_types_df_nominations) |> DataFrame
-        df_Obligations = CSV.File(savepath * "\\Obligations.csv", types = column_types_df_Obligations) |> DataFrame
-        df_Reservoirs = CSV.File(savepath * "\\Reservoirs.csv", types = column_types_df_Reservoirs) |> DataFrame
+        df_nominations = CSV.File(savepath * "\\NominationsBounded.csv", types = column_types_df_nominations) |> DataFrame
+        df_Obligations = CSV.File(savepath * "\\ObligationsBounded.csv", types = column_types_df_Obligations) |> DataFrame
+        df_Reservoirs = CSV.File(savepath * "\\ReservoirsBounded.csv", types = column_types_df_Reservoirs) |> DataFrame
         println("DataFrame already exists. Add input parameters as new data...")
         println(eltype.(eachcol(df_nominations)))
         @assert names(df_nominations) == column_names_df_nominations
@@ -269,14 +269,14 @@ function ResultsToDataFrame(savepath, J::Vector{Participant}, R::Vector{Reservoi
     if save == true
         println("Results will be saved at $(savepath)...")
         println(df_Obligations)
-        CSV.write(savepath * "\\Nominations.csv", df_nominations)
-        CSV.write(savepath * "\\Obligations.csv", df_Obligations)
-        CSV.write(savepath * "\\Reservoirs.csv", df_Reservoirs)
+        CSV.write(savepath * "\\NominationsBounded.csv", df_nominations)
+        CSV.write(savepath * "\\ObligationsBounded.csv", df_Obligations)
+        CSV.write(savepath * "\\ReservoirsBounded.csv", df_Reservoirs)
     end
     return df_nominations, df_Obligations, df_Reservoirs
 end
 
-Weeks = [15, 20, 30, 40, 45, 50]
+Weeks = [20, 30, 40, 45, 50]
 WeeklyAverageReservoirLevels = Dict(week => Dict(r => mean(AverageReservoirLevel(R, inflow_data)[1][r][(week-1)*7 + 1: week * 7]) for r in R) for week in 1:52)
 for week in Weeks
     currentweek = week

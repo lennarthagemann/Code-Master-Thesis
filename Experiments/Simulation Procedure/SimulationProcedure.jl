@@ -53,7 +53,7 @@ const filepath_Ljungan = pwd() * "\\Water_Regulation\\TestDataWaterRegulation\\L
 const filepath_prices = pwd() * "\\Inflow Forecasting\\Data\\Spot Prices\\prices_df.csv"
 const filepath_inflows = pwd() * "\\Inflow Forecasting\\Data\\Inflow\\Data from Flasjoen and Holmsjoen.csv"
 const savepath_watervalue = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Inflow Forecasting\\WaterValue"
-const savepath_results = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Experiments\\Results\\SingleVsIndividual\\SingleVsIndividual.csv"
+const savepath_results = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Experiments\\Results\\SingleVsIndividual\\SingleVsIndividualBounded.csv"
 R, K, J = read_data(filepath_Ljungan)
 
 const ColumnReservoir = Dict(r => r.dischargepoint * " Inflow" for r in R)
@@ -127,7 +127,7 @@ function ExampleSimulation(R::Vector{Reservoir}, J::Vector{Participant}, mu_up, 
     WaterCuts = Dict(j => WaterValueCuts(R, j, MediumModel_j[j], cuts[j], currentweek) for j in J)
     WaterCutsOther = Dict(j => WaterValueCuts(R, Others[j], MediumModel_O[j], cutsOther[j], currentweek) for j in J)
 
-    HourlyBiddingCurves, Qnoms1, Ω1, PPoints = FirstLayerSimulation(J, R, Strategy, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, iteration_count_short, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices)
+    HourlyBiddingCurves, Qnoms1, Ω1, PPoints = FirstLayerSimulation(J, R, Strategy, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, iteration_count_short, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices; )
     # price = Price_Scenarios_Short(price_data, 1, stage_count_short)[1][1]
     price = Ω1[J[1]][stage_count_bidding][rand(1:scenario_count_prices)].price
     inflow = Dict(r => Inflow_Scenarios_Short(inflow_data, currentweek, R, stage_count_short, scenario_count_inflows)[1][r][1] for r in R)
@@ -246,16 +246,16 @@ function SplitRevenues(J, R, Revenues)
 function SplitRevenues(J::Vector{Participant}, R::Vector{Reservoir}, Revenues::Vector{Float64})::Vector{Dict{Participant, Float64}}
     TotalParticipationRates = Dict{Participant, Float64}(j => sum(j.participationrate[r] for r in R)/(sum(p.participationrate[r] for r in R for p in J)) for j in J)
     println(TotalParticipationRates)
-    SplitRevenue = [Dict{Participant, Float64}(j => TotalParticipationRates[j] * Revenues[t] for j in J) for t in 1:2]
+    SplitRevenue = [Dict{Participant, Float64}(j => TotalParticipationRates[j] * Revenues[t] for j in J) for t in 1:days]
     return SplitRevenue
 end
 
 # Final_Revenue(J, price, Obligations, z_ups, z_downs, mu_up, mu_down, T)
 # Final_Revenue_Solo(price_solo, Obligation, z_up, z_down, mu_up, mu_down, T)
 
-Strategy = Dict(j => "Nonanticipatory" for j in J)
+Strategy = Dict(j => "Anticipatory" for j in J)
 
-Weeks = [15]
+Weeks = [50]
 WeeklyAverageReservoirLevels = Dict(week => Dict(r => mean(AverageReservoirLevel(R, inflow_data)[1][r][(week-1)*7 + 1: week * 7]) for r in R) for week in 1:52)
 Individual_Revenues = Dict{Int64, Vector{Dict{Participant, Float64}}}()
 Revenues_single = Dict{Int64, Vector{Float64}}()

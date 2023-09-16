@@ -52,11 +52,13 @@ function SurfaceWaterValue(all_res::Vector{Reservoir}, V::SDDP.ValueFunction, j:
         bounds_1 = LinRange(0.0, R[1].currentvolume, 100)
         bounds_2 = LinRange(0.0, R[2].currentvolume, 100)
         f(x, y) = SDDP.evaluate(V, (Symbol("l[Holmsjon]") => y, Symbol("l[Flasjon]") => x))[1]
-        surface(bounds_1, bounds_2, f, legend = false)
+        println(f)
+        surface(bounds_1, bounds_2, xlabel="$(R[1].dischargepoint)", ylabel="$(R[2].dischargepoint)", zlabel="Objective Value", f, title = "Water Value Function for $(j.name)", legend = false)
     else
-        bounds_1 = LinRange(0.0, R[1].curremtvolume, 100)
-        f(x) = SDDP.evaluate(V, (Symbol("l[Flasjon]") => x))[1]
-        Plots.plot(bounds_1, f, legend = false)
+        bounds_1 = LinRange(0.0, R[1].currentvolume, 100)
+        g(x) = SDDP.evaluate(V, Dict(Symbol("l[Flasjon]") => x))[1]
+        values_1 = g.(bounds_1)
+        Plots.plot(bounds_1,values_1, legend = false, xlabel = "$(R[1].dischargepoint)", ylabel = "Objective Value", title = "Water Value Function for $(j.name)")
     end
 end
 
@@ -70,16 +72,23 @@ function PlotWaterValueCuts(all_res::Vector{Reservoir}, V::SDDP.ValueFunction, j
     ReservoirValues = Dict(r => collect(range(0, r.maxvolume, length=cuts)) for r in R)
     objvalues = [SDDP.evaluate(V, Dict(Symbol("l[$(r)]") => ReservoirValues[r][c] for r in R))[1] for c in 1:cuts]
     gradients = [SDDP.evaluate(V, Dict(Symbol("l[$(r)]") => ReservoirValues[r][c] for r in R))[2] for c in 1:cuts]
-
     Plots.plot(LinRange(0.0, R[1].maxvolume, 100), 
     [x -> objvalues[c] - min(objvalues...) -  sum(gradients[c][Symbol("l[$(r)]")] *(ReservoirValues[r][c] - x) for r in R) for c in 1:cuts],
     legend=false, 
     ylabel = "Objective Value",
     xlabel = "Reservoir Level",
-    title = "Water Value Cuts")
+    title = "Water Value Cuts - $(j.name)")
 end
     
 V_j  = Dict(j => SDDP.ValueFunction(MediumModelDictionary_j_loaded[j]; node = week) for j in J)
-j = J[2]
-PlotWaterValueCuts(R, V_j[j], j, 10)
-SurfaceWaterValue(R, V_j[j], j)
+plot_WVC = PlotWaterValueCuts(R, V_j[j], j, 10)
+
+j = J[3]
+plot_WV = SurfaceWaterValue(R, V_j[j], j)
+# png(plot_WV, "C:\\Users\\lenna\\OneDrive - NTNU\\Master Thesis\\Final Presentation\\Images\\WaterValueFunction$(j.name)")
+
+simulations = SDDP.simulate(MediumModelDictionary_j_loaded[j], 1, [:l]);
+plt = SDDP.publication_plot(simulations) do data
+    return data[:l][keys(data[:l])[1]].out
+end
+SDDP.plot(plt, "spaghetti_plot_wah.html")
