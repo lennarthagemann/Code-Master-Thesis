@@ -1279,7 +1279,7 @@ function SingleOwnerBidding(
         # State Variables
         @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = Initial_Reservoir[r])
         @variable(subproblem, ustart[k = K], Bin, SDDP.State, initial_value = 0)
-        @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= sum(k.equivalent * k.spillreference for k in K), SDDP.State, initial_value = 0)
+        @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= 0.75 * sum(k.equivalent * k.spillreference for k in K), SDDP.State, initial_value = 0)
         # Transition Function
         @constraint(subproblem, increasing[i = 1:I, t=1:T], x[i,t].out <= x[i+1,t].out)
         if node == 1

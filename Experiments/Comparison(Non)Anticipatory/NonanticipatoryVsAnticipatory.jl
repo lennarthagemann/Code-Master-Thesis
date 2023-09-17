@@ -278,11 +278,13 @@ end
 
 Weeks = [20, 30, 40, 45, 50]
 WeeklyAverageReservoirLevels = Dict(week => Dict(r => mean(AverageReservoirLevel(R, inflow_data)[1][r][(week-1)*7 + 1: week * 7]) for r in R) for week in 1:52)
-for week in Weeks
-    currentweek = week
-    Initial_Reservoir = WeeklyAverageReservoirLevels[currentweek]
-    Initial_Individual_Reservoir = Dict{Participant, Dict{Reservoir, Float64}}(j => WeeklyAverageReservoirLevels[currentweek] for j in J)
-    Qnoms_Bidding, Obligations, Qnoms_Scheduling, Qadjs, P_Swaps, z_ups, z_downs, Individual_Revenues, l_reals, l_inds = AnticipatoryVsNonanticipatory(R, J, mu_up, mu_down, inflow_data, price_data,
-    Initial_Reservoir, Initial_Individual_Reservoir, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, currentweek, scenario_count_prices, scenario_count_inflows, iteration_count_bidding, iteration_count_short)
-    df_nominations, df_Obligations, df_Reservoirs = ResultsToDataFrame(savepath_experiment, J, R, Strategy_Combinations, Qnoms_Bidding, Obligations, Qnoms_Scheduling, Qadjs, P_Swaps, z_ups, z_downs, Individual_Revenues, l_reals, l_inds, currentweek)
+for i in 1:50
+    for week in Weeks
+        currentweek = week
+        Initial_Reservoir = WeeklyAverageReservoirLevels[currentweek]
+        Initial_Individual_Reservoir = Dict{Participant, Dict{Reservoir, Float64}}(j => WeeklyAverageReservoirLevels[currentweek] for j in J)
+        Qnoms_Bidding, Obligations, Qnoms_Scheduling, Qadjs, P_Swaps, z_ups, z_downs, Individual_Revenues, l_reals, l_inds = AnticipatoryVsNonanticipatory(R, J, mu_up, mu_down, inflow_data, price_data,
+        Initial_Reservoir, Initial_Individual_Reservoir, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, currentweek, scenario_count_prices, scenario_count_inflows, iteration_count_bidding, iteration_count_short)
+        df_nominations, df_Obligations, df_Reservoirs = ResultsToDataFrame(savepath_experiment, J, R, Strategy_Combinations, Qnoms_Bidding, Obligations, Qnoms_Scheduling, Qadjs, P_Swaps, z_ups, z_downs, Individual_Revenues, l_reals, l_inds, currentweek)
+    end
 end
