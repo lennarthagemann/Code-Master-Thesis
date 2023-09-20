@@ -10,6 +10,7 @@ using CSV
 using JSON
 using UUIDs
 using Serialization
+using LaTeXStrings
 try
     using Revise
 catch e
@@ -51,17 +52,34 @@ function saveWaterValuesParticipants(J, R, price_data, inflow_data, savepath_wat
     end
 end
 
+# Overwrite internatl publication Data Function
+
+function SDDP.publication_data(
+    dataset::Vector{<:Vector{<:AbstractDict}},
+    quantiles::Vector{Float64},
+    stage_function::Function,
+)
+    max_stages = minimum(length.(dataset))
+    output_array = fill(NaN, length(quantiles), max_stages)
+    for stage in 1:max_stages
+        stage_data = stage_function.([data[stage] for data in dataset])
+        output_array[:, stage] .= Statistics.quantile(stage_data, quantiles)
+    end
+    return output_array
+end
+
 
 function SaveWaterValuesSolo(R, K, inflow_data, price_data, Stages, iterations, savepath_watervalue)
     PriceScenariosMedium = Price_Scenarios_Medium(price_data, scenario_count_prices_medium)
     InflowScenariosMedium = Inflow_Scenarios_Medium(inflow_data, ColumnReservoir, scenario_count_inflows_weekly, R)
     Ω_medium, P_medium =  create_Ω_medium(PriceScenariosMedium, InflowScenariosMedium, R);
-    model_medium, _ = SingleOwnerMediumTermModel(R, K, Ω_medium, P_medium, Stages, iterations)
+    model_medium, V_medium = SingleOwnerMediumTermModel(R, K, Ω_medium, P_medium, Stages, iterations)
     SDDP.write_cuts_to_file(model_medium, savepath_watervalue)
+    return model_medium, V_medium
 end
 
 saveWaterValuesParticipants(J, R, price_data, inflow_data, savepath_watervalue; scenario_count_prices_medium, scenario_count_inflows_weekly, ColumnReservoir, stage_count_medium, iterations_medium)
-SaveWaterValuesSolo(R, K, inflow_data, price_data, stage_count_medium, iterations_medium, savepath_watervalue * "\\SingleOwner\\MediumModel.json")
+model_medium, V_medium = SaveWaterValuesSolo(R, K, inflow_data, price_data, stage_count_medium, iterations_medium, savepath_watervalue * "\\SingleOwner\\MediumModel.json")
 
 
 cuts_j = Dict(j => ReservoirLevelCuts(R, j.plants, j, f, week, 7) for j in J)
@@ -141,3 +159,40 @@ function PlotWaterValueCuts(all_res::Vector{Reservoir}, V::SDDP.ValueFunction, j
     title = "Water Value Cuts")
 end
 
+simulations_single = SDDP.simulate(
+    model_medium,
+    100,
+    [:l],
+)
+
+function PlotReservoirOverYearPublication(simulations)
+    plot(
+        SDDP.publication_plot(simulations, title = "Reservoir Volume - Flasjon") do data
+            return data[:l][R[1]].out
+        end,
+        SDDP.publication_plot(simulations, title = "Reservoir Volume - Holmsjon") do data
+            return data[:l][R[2]].out
+        end,
+        xlabel = L"\textbf{Week}",
+        xtickfontsize = 14,
+        ytickfontsize = 14,
+        ylabel = L"Reservoir Volume $\left[\frac{m^3}{s}\right]$",
+        titlefontsize = 20,
+        margin = 10* Plots.mm,
+        layout = grid(2,1),
+        size = (1200, 800)
+    )
+end
+
+PlotReservoirOverYearPublication(simulations_single)
+
+spaghetti_single = SDDP.SpaghettiPlot(simulations_single)
+SDDP.add_spaghetti(spaghetti_single; title = "Reservoir", xlabel="Week", ylabel="Reservoir Level - Flasjon") do sim
+    return sim[:l][R[1]].out
+end
+SDDP.add_spaghetti(spaghetti_single; title = "Reservoir", xlabel="Week", ylabel="Reservoir Level - Holmsjon") do sim
+    return sim[:l][R[2]].out
+end
+SDDP.plot(spaghetti_single, "spaghetti_single.html")
+
+savefig("C:\\Users\\lenna\\OneDrive - NTNU\\Master Thesis\\Final Presentation\\Images\\PublicationPlotReservoirLevels.png")

@@ -669,6 +669,7 @@ ________________________________________________________________________________
 function Nonanticipatory_Bidding(
     all_res::Array{Reservoir},
     j::Participant,
+    K::Vector{HydropowerPlant},
     PPoints::Vector{Vector{Float64}},
     Ω_NA,
     P,
@@ -683,6 +684,7 @@ function Nonanticipatory_Bidding(
     Initial_Reservoir::Dict{Reservoir, Float64},
     Initial_Individual_Reservoir::Dict{Participant, Dict{Reservoir, Float64}};
     bounded_bidding = false,
+    bounded_nomination = true,
     S = 200,
     printlevel = 0,
     stability_report = false,
@@ -709,7 +711,11 @@ function Nonanticipatory_Bidding(
             @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= sum(k.equivalent * k.spillreference for k in K_j), SDDP.State, initial_value=0)
         end
         @variable(subproblem, lind[r = R], SDDP.State, initial_value = Initial_Individual_Reservoir[j][r])
-        @variable(subproblem, 0 <= Qnom[r = R], SDDP.State, initial_value = 0)
+        if bounded_nomination == true
+            @variable(subproblem, 0 <= Qnom[r = R] <= min([k.spillreference for k in filter(x -> x.reservoir == r, K)]...), SDDP.State, initial_value = 0)
+        else    
+            @variable(subproblem, 0 <= Qnom[r = R], SDDP.State, initial_value = 0)
+        end
         @variable(subproblem, BALANCE_INDICATOR[r = R], Bin)
         @variable(subproblem, s[r = R] >= 0)
         @variable(subproblem, a_real)
@@ -825,6 +831,7 @@ function Anticipatory_Bidding(
     S = 200,
     printlevel = 0,
     bounded_bidding = false,
+    bounded_nomination = true,
     stability_report = false,
     stopping_rule = SDDP.BoundStalling(10, 1e-4),
     optimizer = CPLEX.Optimizer,
@@ -850,7 +857,11 @@ function Anticipatory_Bidding(
         end
         @variable(subproblem, lind[r = R], SDDP.State, initial_value = Initial_Individual_Reservoir[j][r])
         # @variable(subproblem, 0 <= Qnom[r = R] <= max([k.spillreference for k in filter(k -> k.reservoir in find_ds_reservoirs(r), vcat(K_j,))]...), SDDP.State, initial_value = 0)
-        @variable(subproblem, 0 <= Qnom[r = R], SDDP.State, initial_value = 0)
+        if bounded_nomination == true
+            @variable(subproblem, 0 <= Qnom[r = R] <= min([k.spillreference for k in filter(x -> x.reservoir == r, K)]...), SDDP.State, initial_value = 0)
+        else
+            @variable(subproblem, 0 <= Qnom[r = R], SDDP.State, initial_value = 0)
+        end
         @variable(subproblem, BALANCE_INDICATOR[r = R], Bin)
         @variable(subproblem, s[r = all_res] >= 0)
         @variable(subproblem, a_real)
@@ -969,6 +980,7 @@ function Anticipatory_Bidding(
     The HourlyBiddingCurves and Nominations for Discharge are returned.
 """
 function FirstLayerSimulation(J::Vector{Participant},
+    K::Vector{HydropowerPlant},
     all_res::Vector{Reservoir},
     Strategy::Dict{Participant, String},
     price_data::DataFrame, inflow_data::DataFrame,
@@ -986,7 +998,7 @@ function FirstLayerSimulation(J::Vector{Participant},
         Ω_NA_local, P_NA_local, Ω_scenario_local, P_scenario_local = create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, all_res, stage_count_bidding)
         PPoints[j] = Create_Price_Points(Ω_NA_local, scenario_count_prices, T, mu_up)
         if Strategy[j] == "Nonanticipatory"
-            Qnom, HourlyBiddingCurve = Nonanticipatory_Bidding(R, j, PPoints[j], Ω_NA_local, P_NA_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding, Initial_Reservoir, Initial_Individual_Reservoir; printlevel = printlevel, stability_report = stability_report, bounded_bidding = bounded_bidding)
+            Qnom, HourlyBiddingCurve = Nonanticipatory_Bidding(R, j, K, PPoints[j], Ω_NA_local, P_NA_local, Qref, cuts[j], WaterCuts[j], iteration_count_short, mu_up, mu_down, T, stage_count_bidding, Initial_Reservoir, Initial_Individual_Reservoir; printlevel = printlevel, stability_report = stability_report, bounded_bidding = bounded_bidding)
             HourlyBiddingCurves[j] = HourlyBiddingCurve
         else
             Ω_A_local, P_A_local = create_Ω_Anticipatory(Ω_NA_local, Ω_scenario_local, P_scenario_local, J, j, all_res, PPoints[j], Qref, cutsOther, WaterCutsOther, stage_count_bidding, mu_up, mu_down, T)
@@ -1031,6 +1043,7 @@ function ShortTermScheduling(
     Stages::Int64,
     Initial_Reservoir::Dict{Reservoir, Float64},
     Initial_Individual_Reservoir::Dict{Participant, Dict{Reservoir, Float64}};
+    bounded_nomination = true,
     lambda = 2.0,
     S = 200,
     printlevel = 0,
@@ -1049,7 +1062,11 @@ function ShortTermScheduling(
         @variable(subproblem, lind[r = R], SDDP.State, initial_value = Initial_Individual_Reservoir[j][r])
         @variable(subproblem, u_start[k = K_j], SDDP.State, initial_value = 0, Bin)
         # Control Variables
-        @variable(subproblem, 0 <= Qnom[r = R])
+        if bounded_nomination == true
+            @variable(subproblem, 0 <= Qnom[r = R] <= min([k.spillreference for  k in filter(x -> x.reservoir == r, vcat(K_j, K_O))]...))
+        else
+            @variable(subproblem, 0 <= Qnom[r = R])
+        end
         @variable(subproblem, d[t = 1:T, k = K_j], Bin)
         @variable(subproblem, u[t = 1:T, k = K_j], Bin)
         @variable(subproblem, BALANCE_INDICATOR[r = R], Bin)
@@ -1489,7 +1506,7 @@ function SingleOwnerMediumTermModel(
     graph = SDDP.LinearGraph(Stages)
     # We can choose to solve an infinite horizon model, so that the Reservoir is not always empty at the end of the horizon
     if loop
-        SDDP.add_edge(graph, Stages => 1, 0.5)
+        SDDP.add_edge(graph, Stages => 1, 0.8)
     end
     model_medium = SDDP.PolicyGraph(
         subproblem_builder_medium,
@@ -1907,12 +1924,13 @@ end
 
 """
 function create_Ω_Anticipatory(Ω_NA, Ω_scenario, P_scenario, J::Vector{Participant}, j::Participant, R::Vector{Reservoir}, PPoints, Qref, cutsOther, WaterCutsOther, stage_count_bidding::Int64, mu_up, mu_down, T; iteration_count_bidding = 10)
-    O, _ = OtherParticipant(J, j, R)
+    O, K_O = OtherParticipant(J, j, R)
     Initial_Reservoir_Other = Dict(r => r.currentvolume for r in R)
     Initial_Individual_Reservoir_Other = Dict(O => Dict(r => r.currentvolume for r in R))
     local_nom = Dict(scenario => Nonanticipatory_Bidding(
         R,
         O,
+        vcat(K_O, j.plants),
         PPoints,
         Ω_scenario[scenario],
         P_scenario,

@@ -40,7 +40,7 @@ Base.tryparse(::Type{Vector{Float64}}, s::AbstractString) = parse_vector_string(
 
 
 const filepath_Ljungan = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Water_Regulation\\TestDataWaterRegulation\\Ljungan.json"
-const savepath_experiment = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Experiments\\Results\\SingleVsIndividual\\SingleVsIndividualBounded.csv"
+const savepath_experiment = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Experiments\\Results\\SingleVsIndividual\\SingleVsIndividualBoundedNom.csv"
 
 R, K, J = read_data(filepath_Ljungan)
 
@@ -56,50 +56,66 @@ function ScaledRevenues(results_df::DataFrame, K::Vector{HydropowerPlant}, J::Ve
     revenues_df_Anticipatory = select(subset(results_df, :Strategy_Sydkraft => x -> x .=="Anticipatory"), :Q_single_Flasjon, :Q_single_Holmsjon, :Qnom_Sydkraft_Flasjon,  :Qnom_Fortum_Flasjon, :Qnom_Fortum_Holmsjon, :Qnom_Statkraft_Flasjon, :Qnom_Statkraft_Holmsjon, :Single_Revenue, :VF_Revenues_Sydkraft, :VF_Revenues_Fortum, :VF_Revenues_Statkraft, :Split_Revenues_Sydkraft, :Split_Revenues_Fortum, :Split_Revenues_Statkraft)
 
     revenues_df_Nonanticipatory = select(revenues_df_Nonanticipatory, :Single_Revenue, :VF_Revenues_Sydkraft, :VF_Revenues_Fortum, :VF_Revenues_Statkraft, :Split_Revenues_Sydkraft, :Split_Revenues_Fortum, :Split_Revenues_Statkraft, :Q_single_Flasjon, :Q_single_Holmsjon, :Qnom_Sydkraft_Flasjon,  :Qnom_Fortum_Flasjon, :Qnom_Fortum_Holmsjon, :Qnom_Statkraft_Flasjon, :Qnom_Statkraft_Holmsjon,
-    [:Single_Revenue, :Q_single_Flasjon, :Q_single_Holmsjon] => ((x1,x2,x3) -> x1 ./ (x2 .* J[1].participationrate[R[1]] + x3 .* (J[2].participationrate[R[1]] + J[3].participationrate[R[1]]))) =>  :Scaled_Revenue,
+    [:Single_Revenue, :Q_single_Flasjon, :Q_single_Holmsjon] => ((x1,x2,x3) -> x1 ./ (x2 .* (J[1].participationrate[R[1]] + J[2].participationrate[R[1]]  + J[3].participationrate[R[1]])+ x3 .* (J[2].participationrate[R[1]] + J[3].participationrate[R[1]]))) =>  :Scaled_Revenue,
     [:VF_Revenues_Sydkraft ,:Qnom_Sydkraft_Flasjon] => ((x1,x2) -> min.(x1 ./ (x2 * J[1].participationrate[R[1]]), 4000)) =>  :Scaled_Revenue_Sydkraft,
     [:VF_Revenues_Fortum,:Qnom_Fortum_Flasjon, :Qnom_Fortum_Holmsjon] => ((x1,x2,x3) -> x1 ./ ((x2 .+ x3) * J[2].participationrate[R[1]])) =>  :Scaled_Revenue_Fortum,
     [:VF_Revenues_Statkraft,:Qnom_Statkraft_Flasjon, :Qnom_Statkraft_Holmsjon] => ((x1,x2,x3) -> x1 ./ ((x2 .+ x3) * J[3].participationrate[R[1]])) =>  :Scaled_Revenue_Statkraft,
 
-    [:Split_Revenues_Sydkraft ,:Q_single_Flasjon, :Q_single_Holmsjon] => ((x1,x2,x3) -> x1 ./ ((x2 .+ x3) * J[1].participationrate[R[1]])) =>  :Scaled_Split_Revenue_Sydkraft,
-    [:Split_Revenues_Fortum, :Q_single_Flasjon, :Q_single_Holmsjon] => ((x1,x2,x3) -> x1 ./ ((x2 .+ x3) * J[2].participationrate[R[1]])) =>  :Scaled_Split_Revenue_Fortum,
-    [:Split_Revenues_Statkraft, :Q_single_Flasjon, :Q_single_Holmsjon] => ((x1,x2,x3) -> x1 ./ ((x2 .+ x3) * J[3].participationrate[R[1]])) =>  :Scaled_Split_Revenue_Statkraft,                                                                               
+    # [:Split_Revenues_Sydkraft ,:Q_single_Flasjon, :Q_single_Holmsjon] => ((x1,x2,x3) -> x1 ./ ((x2 .+ x3) * J[1].participationrate[R[1]])) =>  :Scaled_Split_Revenue_Sydkraft,
+    # [:Split_Revenues_Fortum, :Q_single_Flasjon, :Q_single_Holmsjon] => ((x1,x2,x3) -> x1 ./ ((x2 .+ x3) * J[2].participationrate[R[1]])) =>  :Scaled_Split_Revenue_Fortum,
+    # [:Split_Revenues_Statkraft, :Q_single_Flasjon, :Q_single_Holmsjon] => ((x1,x2,x3) -> x1 ./ ((x2 .+ x3) * J[3].participationrate[R[1]])) =>  :Scaled_Split_Revenue_Statkraft,                                                                               
     )    
     println(select( revenues_df_Nonanticipatory))
     revenues_df_Anticipatory = select(revenues_df_Anticipatory, :Single_Revenue, :VF_Revenues_Sydkraft, :VF_Revenues_Fortum, :VF_Revenues_Statkraft, :Split_Revenues_Sydkraft, :Split_Revenues_Fortum, :Split_Revenues_Statkraft, :Q_single_Flasjon, :Q_single_Holmsjon, :Qnom_Sydkraft_Flasjon,  :Qnom_Fortum_Flasjon, :Qnom_Fortum_Holmsjon, :Qnom_Statkraft_Flasjon, :Qnom_Statkraft_Holmsjon,
-    [:Single_Revenue, :Q_single_Flasjon, :Q_single_Holmsjon] => ((x1,x2,x3) -> x1 ./ (x2 .* J[1].participationrate[R[1]] + x3 .* (J[2].participationrate[R[1]] + J[3].participationrate[R[1]]))) =>  :Scaled_Revenue,
     
-    [:VF_Revenues_Sydkraft ,:Qnom_Sydkraft_Flasjon] => ((x1,x2) -> x1 ./ (x2 * J[1].participationrate[R[1]])) =>  :Scaled_Revenue_Sydkraft,
+    [:Single_Revenue, :Q_single_Flasjon, :Q_single_Holmsjon] => ((x1,x2,x3) -> x1 ./ (x2 .* (J[1].participationrate[R[1]] + J[2].participationrate[R[1]]  + J[3].participationrate[R[1]])+ x3 .* (J[2].participationrate[R[1]] + J[3].participationrate[R[1]]))) =>  :Scaled_Revenue,
+    [:VF_Revenues_Sydkraft ,:Qnom_Sydkraft_Flasjon] => ((x1,x2) -> min.(x1 ./ (x2 * J[1].participationrate[R[1]]), 5800))=>  :Scaled_Revenue_Sydkraft,
     [:VF_Revenues_Fortum, :Qnom_Fortum_Flasjon, :Qnom_Fortum_Holmsjon] => ((x1,x2,x3) -> x1 ./ ((x2 .+ x3) * J[2].participationrate[R[1]])) =>  :Scaled_Revenue_Fortum,
     [:VF_Revenues_Statkraft, :Qnom_Statkraft_Flasjon, :Qnom_Statkraft_Holmsjon] => ((x1,x2,x3) -> x1 ./ ((x2 .+ x3) * J[3].participationrate[R[1]])) =>  :Scaled_Revenue_Statkraft,
     
-    [:Split_Revenues_Sydkraft, :Q_single_Flasjon, :Q_single_Holmsjon] => ((x1,x2,x3) -> x1 ./ ((x2 .+ x3) * J[1].participationrate[R[1]])) =>  :Scaled_Split_Revenue_Sydkraft,
-    [:Split_Revenues_Fortum, :Q_single_Flasjon, :Q_single_Holmsjon] => ((x1,x2,x3) -> x1 ./ ((x2 .+ x3) * J[2].participationrate[R[1]])) =>  :Scaled_Split_Revenue_Fortum,
-    [:Split_Revenues_Statkraft, :Q_single_Flasjon, :Q_single_Holmsjon] => ((x1,x2,x3) -> x1 ./ ((x2 .+ x3) * J[3].participationrate[R[1]])) =>  :Scaled_Split_Revenue_Statkraft,                                                                               
+    # [:Split_Revenues_Sydkraft, :Q_single_Flasjon, :Q_single_Holmsjon] => ((x1,x2,x3) -> x1 ./ ((x2 .+ x3) * J[1].participationrate[R[1]])) =>  :Scaled_Split_Revenue_Sydkraft,
+    # [:Split_Revenues_Fortum, :Q_single_Flasjon, :Q_single_Holmsjon] => ((x1,x2,x3) -> x1 ./ ((x2 .+ x3) * J[2].participationrate[R[1]])) =>  :Scaled_Split_Revenue_Fortum,
+    # [:Split_Revenues_Statkraft, :Q_single_Flasjon, :Q_single_Holmsjon] => ((x1,x2,x3) -> x1 ./ ((x2 .+ x3) * J[3].participationrate[R[1]])) =>  :Scaled_Split_Revenue_Statkraft,                                                                               
     )    
-    
-    revenues_df_Nonanticipatory = select(subset(revenues_df_Nonanticipatory, :Scaled_Revenue_Sydkraft =>  x -> x .> -1e6),  [:Scaled_Revenue, :Scaled_Revenue_Sydkraft, :Scaled_Revenue_Fortum, :Scaled_Revenue_Statkraft, :Scaled_Split_Revenue_Sydkraft, :Scaled_Split_Revenue_Fortum, :Scaled_Split_Revenue_Statkraft])
-    revenues_df_Anticipatory = select(subset(revenues_df_Anticipatory, :Scaled_Revenue_Sydkraft => x  -> x .> -1e6 ), [:Scaled_Revenue, :Scaled_Revenue_Sydkraft, :Scaled_Revenue_Fortum, :Scaled_Revenue_Statkraft,  :Scaled_Split_Revenue_Sydkraft, :Scaled_Split_Revenue_Fortum, :Scaled_Split_Revenue_Statkraft])
+    revenues_df_Nonanticipatory = select(subset(revenues_df_Nonanticipatory, :Scaled_Revenue_Sydkraft =>  x -> x .> -1e6),  [:Scaled_Revenue, :Scaled_Revenue_Sydkraft, :Scaled_Revenue_Fortum, :Scaled_Revenue_Statkraft])#,:Scaled_Split_Revenue_Sydkraft, :Scaled_Split_Revenue_Fortum, :Scaled_Split_Revenue_Statkraft])
+    revenues_df_Anticipatory = select(subset(revenues_df_Anticipatory, :Scaled_Revenue_Sydkraft => x  -> x .> -1e6 ), [:Scaled_Revenue, :Scaled_Revenue_Sydkraft, :Scaled_Revenue_Fortum, :Scaled_Revenue_Statkraft])#,  :Scaled_Split_Revenue_Sydkraft, :Scaled_Split_Revenue_Fortum, :Scaled_Split_Revenue_Statkraft])
     return revenues_df_Nonanticipatory, revenues_df_Anticipatory
 end
 
 results_df = LoadResultsDataFrame(R, J, savepath_experiment)
 revenues_df_Nonanticipatory, revenues_df_Anticipatory  = ScaledRevenues(results_df, K, J, R)
 
-plot([
-    histogram(revenues_df_Nonanticipatory, x=:Scaled_Revenue, opacity=0.9, name = "Single Participant"),
-    histogram(revenues_df_Nonanticipatory, x=:Scaled_Revenue_Sydkraft, opacity=0.9, name = J[1].name),
-    histogram(revenues_df_Nonanticipatory, x=:Scaled_Revenue_Fortum, opacity=0.9, name = J[2].name),
-    histogram(revenues_df_Nonanticipatory, x=:Scaled_Revenue_Statkraft, opacity=0.9, name = J[3].name)],
-    Layout(title = L"Statistical Distribution of Revenues per \$\\frac{m^3}{s}\$ - Nonanticipatory", xaxis_title= "Revenue", yaxis_title = "Count" ))
-
-plot([
-    histogram(revenues_df_Anticipatory, x=:Scaled_Revenue, opacity=0.9, name = "Single Participant"),
-    histogram(revenues_df_Anticipatory, x=:Scaled_Revenue_Sydkraft, opacity=0.9, name = J[1].name),
-    histogram(revenues_df_Anticipatory, x=:Scaled_Revenue_Fortum, opacity=0.9, name = J[2].name),
-    histogram(revenues_df_Anticipatory, x=:Scaled_Revenue_Statkraft, opacity=0.9, name = J[3].name)],
-    Layout(title = "Statistical Distribution of Revenues per \\frac{m^3}{s}  - Anticipatory", xaxis_title= "Revenue", yaxis_title = "Count" ))
-
 
 select(results_df, :Single_Revenue , [:Q_single_Flasjon, :Q_single_Holmsjon] => ((x1, x2) ->  x1 .+ x2) => :Qsingle, [:Qadj_Flasjon, :Qadj_Holmsjon] => ((x1, x2) -> x1 .+ x2) => :Qadj, [:VF_Revenues_Sydkraft, :VF_Revenues_Fortum, :VF_Revenues_Statkraft] => ((x1, x2, x3) ->  x1 .+ x2 .+x3) => :VF_Revenues)
-select(revenues_df_Nonanticipatory, r"Scaled")
+
+Scaled_Revenues_Nonanticipatory = select(revenues_df_Nonanticipatory, r"Scaled_Revenue_S", r"Scaled_Revenue_F", "Scaled_Revenue")
+Scaled_Revenues_Anticipatory = select(revenues_df_Anticipatory, r"Scaled_Revenue_S", r"Scaled_Revenue_F", "Scaled_Revenue")
+
+Performance_Comparison_Nonanticipatory = select(Scaled_Revenues_Nonanticipatory, :Scaled_Revenue_Sydkraft, :Scaled_Revenue_Statkraft, :Scaled_Revenue_Fortum, :Scaled_Revenue,
+[:Scaled_Revenue_Sydkraft,  :Scaled_Revenue] => ((x1, x2) -> x1 ./ x2) => :Comparison_Sydkraft,
+[:Scaled_Revenue_Fortum, :Scaled_Revenue] => ((x1, x2) -> x1 ./ x2) => :Comparison_Fortum,
+[:Scaled_Revenue_Statkraft, :Scaled_Revenue] => ((x1, x2) -> x1 ./ x2) => :Comparison_Statkraft)
+
+Performance_Comparison_Anticipatory = select(Scaled_Revenues_Anticipatory, :Scaled_Revenue_Sydkraft, :Scaled_Revenue_Statkraft, :Scaled_Revenue_Fortum, :Scaled_Revenue,
+[:Scaled_Revenue_Sydkraft,  :Scaled_Revenue] => ((x1, x2) -> x1 ./ x2) => :Comparison_Sydkraft,
+[:Scaled_Revenue_Fortum, :Scaled_Revenue] => ((x1, x2) -> x1 ./ x2) => :Comparison_Fortum,
+[:Scaled_Revenue_Statkraft, :Scaled_Revenue] => ((x1, x2) -> x1 ./ x2) => :Comparison_Statkraft)
+
+
+
+revenues_and_discharge = select(results_df, ["VF_Revenues_Sydkraft", "VF_Revenues_Fortum", "VF_Revenues_Statkraft"] => ((x1,x2,x3) -> x1 .+ x2 .+ x3) => "VF_Revenues", "Single_Revenue", r"Q")
+
+plot([
+    box(revenues_df_Nonanticipatory, x=:Scaled_Revenue, opacity=0.9, name = "Single Participant", nbinsx=10),
+    box(revenues_df_Nonanticipatory, x=:Scaled_Revenue_Sydkraft, opacity=0.9, name = J[1].name, nbinsx=10),
+    box(revenues_df_Nonanticipatory, x=:Scaled_Revenue_Fortum, opacity=0.9, name = J[2].name, nbinsx=10),
+    box(revenues_df_Nonanticipatory, x=:Scaled_Revenue_Statkraft, opacity=0.9, name = J[3].name, nbinsx=10)],
+    Layout(title = "Statistical Distribution of Scaled Revenues per m^3/s - Nonanticipatory", xaxis_title= "Revenue", xaxis_range = [-2000, 6000]))
+
+
+plot([
+    box(revenues_df_Anticipatory, x=:Scaled_Revenue, opacity=0.9, name = "Single Participant", nbinsx=10),
+    box(revenues_df_Anticipatory, x=:Scaled_Revenue_Sydkraft, opacity=0.9, name = J[1].name, nbinsx=10),
+    box(revenues_df_Anticipatory, x=:Scaled_Revenue_Fortum, opacity=0.9, name = J[2].name, nbinsx=10),
+    box(revenues_df_Anticipatory, x=:Scaled_Revenue_Statkraft, opacity=0.9, name = J[3].name, nbinsx=10)],
+    Layout(title = "Statistical Distribution of Scaled Revenues per m^3/s - Anticipatory", xaxis_title= "Revenue", xaxis_range = [-2000, 6000]))

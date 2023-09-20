@@ -53,7 +53,7 @@ const filepath_Ljungan = pwd() * "\\Water_Regulation\\TestDataWaterRegulation\\L
 const filepath_prices = pwd() * "\\Inflow Forecasting\\Data\\Spot Prices\\prices_df.csv"
 const filepath_inflows = pwd() * "\\Inflow Forecasting\\Data\\Inflow\\Data from Flasjoen and Holmsjoen.csv"
 const savepath_watervalue = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Inflow Forecasting\\WaterValue"
-const savepath_results = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Experiments\\Results\\SingleVsIndividual\\SingleVsIndividualBounded.csv"
+const savepath_results = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Experiments\\Results\\SingleVsIndividual\\SingleVsIndividualBoundedNom.csv"
 R, K, J = read_data(filepath_Ljungan)
 
 const ColumnReservoir = Dict(r => r.dischargepoint * " Inflow" for r in R)
@@ -116,7 +116,7 @@ Simulate The Entire Procedure for one week, and obtain the solution afterwards. 
     - Realized Price
     - Reservoir Level Changes (Real / Individual)
     """
-function ExampleSimulation(R::Vector{Reservoir}, J::Vector{Participant}, mu_up, mu_down, inflow_data, price_data, MediumModel_j, MediumModel_O, currentweek::Int64, scenario_count_prices::Int64; ColumnReservoir = ColumnReservoir)
+function ExampleSimulation(R::Vector{Reservoir}, J::Vector{Participant}, K::Vector{HydropowerPlant}, mu_up, mu_down, inflow_data, price_data, MediumModel_j, MediumModel_O, currentweek::Int64, scenario_count_prices::Int64; ColumnReservoir = ColumnReservoir)
     # PPoints = Create_Price_Points(price_data, price_point_count)
     l_traj, f = AverageReservoirLevel(R, inflow_data)
     Qref = CalculateReferenceFlow(R, l_traj, f, currentweek)
@@ -127,7 +127,7 @@ function ExampleSimulation(R::Vector{Reservoir}, J::Vector{Participant}, mu_up, 
     WaterCuts = Dict(j => WaterValueCuts(R, j, MediumModel_j[j], cuts[j], currentweek) for j in J)
     WaterCutsOther = Dict(j => WaterValueCuts(R, Others[j], MediumModel_O[j], cutsOther[j], currentweek) for j in J)
 
-    HourlyBiddingCurves, Qnoms1, Ω1, PPoints = FirstLayerSimulation(J, R, Strategy, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, iteration_count_short, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices; )
+    HourlyBiddingCurves, Qnoms1, Ω1, PPoints = FirstLayerSimulation(J, K, R, Strategy, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, iteration_count_short, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices; )
     # price = Price_Scenarios_Short(price_data, 1, stage_count_short)[1][1]
     price = Ω1[J[1]][stage_count_bidding][rand(1:scenario_count_prices)].price
     inflow = Dict(r => Inflow_Scenarios_Short(inflow_data, currentweek, R, stage_count_short, scenario_count_inflows)[1][r][1] for r in R)
@@ -150,7 +150,7 @@ function Comparison_Single_VF(R, J, mu_up, mu_down, inflow_data, price_data, Med
     Furthermore, we would like to know how the individual reservoirs behave, and if there are participants that profit differently from other players in the system. How would their profits have been,
     if they were distributed from the single owner model based on total production power?
 """
-function Comparison_Single_VF(R::Vector{Reservoir},J::Vector{Participant}, mu_up::Float64, mu_down::Float64, inflow_data::DataFrame, price_data::DataFrame,
+function Comparison_Single_VF(R::Vector{Reservoir},J::Vector{Participant}, K::Vector{HydropowerPlant}, mu_up::Float64, mu_down::Float64, inflow_data::DataFrame, price_data::DataFrame,
     MediumModel_j, MediumModel_O, MediumModelSingle, Initial_Reservoir::Dict{Reservoir, Float64}, Initial_Individual_Reservoir::Dict{Participant, Dict{Reservoir, Float64}}, currentweek::Int64, scenario_count_prices::Int64, scenario_count_inflows::Int64, iteration_count_bidding::Int64, Strategy::Dict{Participant, String}; ColumnReservoir = ColumnReservoir)
     l_traj, f = AverageReservoirLevel(R, inflow_data)
     Individual_Revenues = Dict{Participant, Float64}[]
@@ -189,7 +189,7 @@ function Comparison_Single_VF(R::Vector{Reservoir},J::Vector{Participant}, mu_up
         Ω_single, P_single, _, _= create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, R, stage_count_bidding)
         PPoints_single = Create_Price_Points(Ω_single, scenario_count_prices, T, mu_up)
         HourlyBiddingCurve = SingleOwnerBidding(R, l_single, K, PPoints_single, Ω_single, P_single , cuts_single, WaterCuts_single, mu_up, mu_down, iteration_count_bidding, T, stage_count_bidding)
-        HourlyBiddingCurves, Qnoms1, Ω1, PPoints = FirstLayerSimulation(J, R, Strategy, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_short, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek)
+        HourlyBiddingCurves, Qnoms1, Ω1, PPoints = FirstLayerSimulation(J, K, R, Strategy, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_short, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek)
         # Realization of uncertain parameters: inflow and price
         price = create_Ω_Nonanticipatory(price_data, inflow_data, 1, 1, currentweek, R, stage_count_bidding)[1][stage_count_bidding][1].price
         inflow_array = Inflow_Scenarios_Short(inflow_data, currentweek, R, stage_count_short, 1)[1]
@@ -253,9 +253,9 @@ end
 # Final_Revenue(J, price, Obligations, z_ups, z_downs, mu_up, mu_down, T)
 # Final_Revenue_Solo(price_solo, Obligation, z_up, z_down, mu_up, mu_down, T)
 
-Strategy = Dict(j => "Nonanticipatory" for j in J)
+Strategy = Dict(j => "Anticipatory" for j in J)
 
-Weeks = [2, 15, 20, 30, 40, 45, 50]
+Weeks = [1, 14, 19, 29, 39, 44, 49]
 WeeklyAverageReservoirLevels = Dict(week => Dict(r => mean(AverageReservoirLevel(R, inflow_data)[1][r][(week-1)*7 + 1: week * 7]) for r in R) for week in 1:52)
 Individual_Revenues = Dict{Int64, Vector{Dict{Participant, Float64}}}()
 Revenues_single = Dict{Int64, Vector{Float64}}()
@@ -275,7 +275,7 @@ for week in Weeks
     println("Current week: $(week)")
     Initial_Reservoir = copy(WeeklyAverageReservoirLevels[week])
     Initial_Individual_Reservoir = Dict{Participant, Dict{Reservoir, Float64}}(j => copy(WeeklyAverageReservoirLevels[week]) for j in J)
-    Individual_Revenue, Revenue_single, l_single, l_vf, l_vf_ind, Qadj, Qnom, Qnom_individual, P_Swap, Obligation, Obligation_solo, z_up, z_down = Comparison_Single_VF(R, J, mu_up, mu_down, inflow_data, price_data, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, MediumModelSingle, Initial_Reservoir, Initial_Individual_Reservoir, week, scenario_count_prices, scenario_count_inflows, iteration_count_bidding, Strategy)
+    Individual_Revenue, Revenue_single, l_single, l_vf, l_vf_ind, Qadj, Qnom, Qnom_individual, P_Swap, Obligation, Obligation_solo, z_up, z_down = Comparison_Single_VF(R, J, K, mu_up, mu_down, inflow_data, price_data, MediumModelDictionary_j_loaded, MediumModelDictionary_O_loaded, MediumModelSingle, Initial_Reservoir, Initial_Individual_Reservoir, week, scenario_count_prices, scenario_count_inflows, iteration_count_bidding, Strategy)
     Split_Revenue = SplitRevenues(J, R, Revenue_single)
     Individual_Revenues[week] = Individual_Revenue
     Revenues_single[week] = Revenue_single

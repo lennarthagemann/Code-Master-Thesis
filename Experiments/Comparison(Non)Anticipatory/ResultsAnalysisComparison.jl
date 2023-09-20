@@ -97,13 +97,13 @@ end
 results_df, ScaledRevenuesNonanticipatory, ScaledRevenuesAnticipatory = combineDF(J, R, results_df_nominations, results_df_obligations, results_df_reservoirs)
 
 plot([
-    histogram(ScaledRevenuesAnticipatory[J[1]], x=:RevenueScaled_Sydkraft, opacity=0.9, name = J[1].name),
-    histogram(ScaledRevenuesAnticipatory[J[2]], x=:RevenueScaled_Fortum, opacity=0.9, name = J[2].name),
-    histogram(ScaledRevenuesAnticipatory[J[3]], x=:RevenueScaled_Statkraft, opacity=0.9, name = J[3].name)],
-    Layout(title = "Statistical Distribution of Revenues - Anticipatory", xaxis_title= "Revenue", yaxis_title = "Count" ))
+    histogram(ScaledRevenuesAnticipatory[J[1]], x=:RevenueScaled_Sydkraft, opacity=0.9, nbinsx = 10, name = J[1].name),
+    histogram(ScaledRevenuesAnticipatory[J[2]], x=:RevenueScaled_Fortum, opacity=0.9, nbinsx = 10, name = J[2].name),
+    histogram(ScaledRevenuesAnticipatory[J[3]], x=:RevenueScaled_Statkraft, opacity=0.9, nbinsx = 10, name = J[3].name)],
+    Layout(title = "Statistical Distribution of Revenues - Anticipatory", xaxis_title= "Revenue", xaxis_range = [-2000, 4500], yaxis_title = "Count" ))
 
 plot([
-    histogram(ScaledRevenuesNonanticipatory[J[1]], x=:RevenueScaled_Sydkraft, opacity=0.9, name = J[1].name),
-    histogram(ScaledRevenuesNonanticipatory[J[2]], x=:RevenueScaled_Fortum, opacity=0.9, name = J[2].name),
-    histogram(ScaledRevenuesNonanticipatory[J[3]], x=:RevenueScaled_Statkraft, opacity=0.9, name = J[3].name)],
-    Layout(title = "Statistical Distribution of Revenues - Nonanticipatory", xaxis_title= "Revenue", yaxis_title = "Count" ))
+    histogram(ScaledRevenuesNonanticipatory[J[1]], x=:RevenueScaled_Sydkraft, opacity=0.9, nbinsx = 10, name = J[1].name),
+    histogram(ScaledRevenuesNonanticipatory[J[2]], x=:RevenueScaled_Fortum, opacity=0.9, nbinsx = 10, name = J[2].name),
+    histogram(ScaledRevenuesNonanticipatory[J[3]], x=:RevenueScaled_Statkraft, opacity=0.9, nbinsx = 10, name = J[3].name)],
+    Layout(title = "Statistical Distribution of Revenues - Nonanticipatory", xaxis_title= "Revenue", xaxis_range = [-2000, 4500], yaxis_title = "Count" ))
