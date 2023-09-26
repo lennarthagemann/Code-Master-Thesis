@@ -1506,7 +1506,7 @@ function SingleOwnerMediumTermModel(
     graph = SDDP.LinearGraph(Stages)
     # We can choose to solve an infinite horizon model, so that the Reservoir is not always empty at the end of the horizon
     if loop
-        SDDP.add_edge(graph, Stages => 1, 0.8)
+        SDDP.add_edge(graph, Stages => 1, 0.5)
     end
     model_medium = SDDP.PolicyGraph(
         subproblem_builder_medium,

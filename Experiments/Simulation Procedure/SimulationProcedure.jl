@@ -253,9 +253,9 @@ end
 # Final_Revenue(J, price, Obligations, z_ups, z_downs, mu_up, mu_down, T)
 # Final_Revenue_Solo(price_solo, Obligation, z_up, z_down, mu_up, mu_down, T)
 
-Strategy = Dict(j => "Anticipatory" for j in J)
+Strategy = Dict(j => "Nonanticipatory" for j in J)
 
-Weeks = [1, 14, 19, 29, 39, 44, 49]
+Weeks = [3, 13, 18, 28, 38, 43, 48]
 WeeklyAverageReservoirLevels = Dict(week => Dict(r => mean(AverageReservoirLevel(R, inflow_data)[1][r][(week-1)*7 + 1: week * 7]) for r in R) for week in 1:52)
 Individual_Revenues = Dict{Int64, Vector{Dict{Participant, Float64}}}()
 Revenues_single = Dict{Int64, Vector{Float64}}()
@@ -292,6 +292,7 @@ for week in Weeks
     z_ups[week] = z_up
     z_downs[week] = z_down
 end
+
 """
 function ResultsToDataFrameSingleVsIndividual()
     

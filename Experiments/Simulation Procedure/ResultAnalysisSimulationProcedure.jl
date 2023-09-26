@@ -110,7 +110,7 @@ plot([
     box(revenues_df_Nonanticipatory, x=:Scaled_Revenue_Sydkraft, opacity=0.9, name = J[1].name, nbinsx=10),
     box(revenues_df_Nonanticipatory, x=:Scaled_Revenue_Fortum, opacity=0.9, name = J[2].name, nbinsx=10),
     box(revenues_df_Nonanticipatory, x=:Scaled_Revenue_Statkraft, opacity=0.9, name = J[3].name, nbinsx=10)],
-    Layout(title = "Statistical Distribution of Scaled Revenues per m^3/s - Nonanticipatory", xaxis_title= "Revenue", xaxis_range = [-2000, 6000]))
+    Layout(title = "Statistical Distribution of Scaled Revenues - Nonanticipatory", xaxis_title= "Revenue", xaxis_range = [-2000, 6000]))
 
 
 plot([
@@ -118,4 +118,4 @@ plot([
     box(revenues_df_Anticipatory, x=:Scaled_Revenue_Sydkraft, opacity=0.9, name = J[1].name, nbinsx=10),
     box(revenues_df_Anticipatory, x=:Scaled_Revenue_Fortum, opacity=0.9, name = J[2].name, nbinsx=10),
     box(revenues_df_Anticipatory, x=:Scaled_Revenue_Statkraft, opacity=0.9, name = J[3].name, nbinsx=10)],
-    Layout(title = "Statistical Distribution of Scaled Revenues per m^3/s - Anticipatory", xaxis_title= "Revenue", xaxis_range = [-2000, 6000]))
+    Layout(title = "Statistical Distribution of Scaled Revenues - Anticipatory", xaxis_title= "Revenue", xaxis_range = [-2000, 6000]))

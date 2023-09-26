@@ -126,7 +126,7 @@ function AnticipatoryVsNonanticipatory(R::Vector{Reservoir},J::Vector{Participan
                 j.individualreservoir[r] = Initial_Individual_Reservoir[j][r]
             end
         end
-        HourlyBiddingCurves, Qnoms1, Ω1, PPoints = FirstLayerSimulation(J, R, strat, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_bidding, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek; printlevel = 0)
+        HourlyBiddingCurves, Qnoms1, Ω1, PPoints = FirstLayerSimulation(J, K, R, strat, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_bidding, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek; printlevel = 0)
         price = Ω1[J[1]][stage_count_bidding][rand(1:scenario_count_prices)].price
         inflow = Dict(r => Inflow_Scenarios_Short(inflow_data, currentweek, R, stage_count_short, scenario_count_inflows)[1][r][1] for r in R)
         Obligation = MarketClearing(price, HourlyBiddingCurves, PPoints, J, T)
@@ -269,9 +269,9 @@ function ResultsToDataFrame(savepath, J::Vector{Participant}, R::Vector{Reservoi
     if save == true
         println("Results will be saved at $(savepath)...")
         println(df_Obligations)
-        CSV.write(savepath * "\\NominationsBounded.csv", df_nominations)
-        CSV.write(savepath * "\\ObligationsBounded.csv", df_Obligations)
-        CSV.write(savepath * "\\ReservoirsBounded.csv", df_Reservoirs)
+        CSV.write(savepath * "\\NominationsBoundedNom.csv", df_nominations)
+        CSV.write(savepath * "\\ObligationsBoundedNom.csv", df_Obligations)
+        CSV.write(savepath * "\\ReservoirsBoundedNom.csv", df_Reservoirs)
     end
     return df_nominations, df_Obligations, df_Reservoirs
 end

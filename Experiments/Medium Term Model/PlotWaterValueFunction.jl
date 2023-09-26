@@ -25,6 +25,7 @@ const filepath_prices = pwd() * "\\Inflow Forecasting\\Data\\Spot Prices\\prices
 const filepath_inflows = pwd() * "\\Inflow Forecasting\\Data\\Inflow\\Data from Flasjoen and Holmsjoen.csv"
 const savepath_watervalue = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Inflow Forecasting\\WaterValue"
 
+price_data = prepare_pricedata(filepath_prices)
 inflow_data = prepare_inflowdata(filepath_inflows)
 R, K, J = read_data(filepath_Ljungan)
 l_traj, f = AverageReservoirLevel(R, inflow_data)
@@ -32,6 +33,10 @@ l_traj, f = AverageReservoirLevel(R, inflow_data)
 const ColumnReservoir = Dict{Reservoir, String}(R[1] => "Flasjon Inflow", R[2] => "Holmsjon Inflow")
 const stage_count_short = 2
 const week = 2
+const scenario_count_prices_medium = 3
+const stage_count_medium = 52
+const iteration_count_medium = 1500
+const scenario_count_inflows_weekly = 1
 
 NameToParticipant = Dict{String, Participant}(j.name => j for j in J)
 PriceScenariosMedium = Price_Scenarios_Medium(price_data, scenario_count_prices_medium)
@@ -76,8 +81,9 @@ function PlotWaterValueCuts(all_res::Vector{Reservoir}, V::SDDP.ValueFunction, j
     [x -> objvalues[c] - min(objvalues...) -  sum(gradients[c][Symbol("l[$(r)]")] *(ReservoirValues[r][c] - x) for r in R) for c in 1:cuts],
     legend=false, 
     ylabel = "Objective Value",
-    xlabel = "Reservoir Level",
-    title = "Water Value Cuts - $(j.name)")
+    xlabel = L"Reservoir Volume $\left[\frac{m^3}{s}\right]$",
+    title = "Water Value Cuts - $(j.name)",
+    size = (1200, 800))
 end
     
 V_j  = Dict(j => SDDP.ValueFunction(MediumModelDictionary_j_loaded[j]; node = week) for j in J)
@@ -85,10 +91,3 @@ plot_WVC = PlotWaterValueCuts(R, V_j[j], j, 10)
 
 j = J[3]
 plot_WV = SurfaceWaterValue(R, V_j[j], j)
-# png(plot_WV, "C:\\Users\\lenna\\OneDrive - NTNU\\Master Thesis\\Final Presentation\\Images\\WaterValueFunction$(j.name)")
-
-simulations = SDDP.simulate(MediumModelDictionary_j_loaded[j], 1, [:l]);
-plt = SDDP.publication_plot(simulations) do data
-    return data[:l][keys(data[:l])[1]].out
-end
-SDDP.plot(plt, "spaghetti_plot_wah.html")

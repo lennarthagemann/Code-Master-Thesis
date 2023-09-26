@@ -79,9 +79,9 @@ function combineDF(J::Vector{Participant}, R::Vector{Reservoir}, results_df_nomi
     ])
     results_df = select(results_df, :week, :Strategy_Sydkraft, :Strategy_Fortum, :Strategy_Statkraft,
     :Qnom2_Sydkraft_Flasjon, :Qnom2_Fortum_Flasjon, :Qnom2_Fortum_Holmsjon, :Qnom2_Statkraft_Flasjon, :Qnom2_Statkraft_Holmsjon, :Revenue_Sydkraft, :Revenue_Fortum, :Revenue_Statkraft,
-    [:Qnom2_Sydkraft_Flasjon, :Revenue_Sydkraft,] => ((x1, x2) -> x2 ./ (x1 * J[1].participationrate[R[1]])) => :RevenueScaled_Sydkraft,
-    [:Qnom2_Fortum_Flasjon, :Qnom2_Fortum_Holmsjon, :Revenue_Sydkraft,] => ((x1, x2, x3) -> x3 ./ ((x1 .+ x2) *J[2].participationrate[R[1]])) => :RevenueScaled_Fortum,
-    [:Qnom2_Statkraft_Flasjon, :Qnom2_Statkraft_Holmsjon, :Revenue_Sydkraft,] => ((x1, x2, x3) -> x3 ./ ((x1 .+ x2) * J[3].participationrate[R[1]])) => :RevenueScaled_Statkraft, 
+    [:Qnom2_Sydkraft_Flasjon, :Revenue_Sydkraft] => ((x1, x2) -> x2 ./ (x1 * J[1].participationrate[R[1]])) => :RevenueScaled_Sydkraft,
+    [:Qnom2_Fortum_Flasjon, :Qnom2_Fortum_Holmsjon, :Revenue_Fortum] => ((x1, x2, x3) -> x3 ./ ((x1 .+ x2) *J[2].participationrate[R[1]])) => :RevenueScaled_Fortum,
+    [:Qnom2_Statkraft_Flasjon, :Qnom2_Statkraft_Holmsjon, :Revenue_Statkraft] => ((x1, x2, x3) -> x3 ./ ((x1 .+ x2) * J[3].participationrate[R[1]])) => :RevenueScaled_Statkraft, 
     )
     ScaledRevenuesNonanticipatory = Dict{Participant, DataFrame}() 
     ScaledRevenuesAnticipatory = Dict{Participant, DataFrame}() 
@@ -96,14 +96,29 @@ end
 
 results_df, ScaledRevenuesNonanticipatory, ScaledRevenuesAnticipatory = combineDF(J, R, results_df_nominations, results_df_obligations, results_df_reservoirs)
 
-plot([
-    histogram(ScaledRevenuesAnticipatory[J[1]], x=:RevenueScaled_Sydkraft, opacity=0.9, nbinsx = 10, name = J[1].name),
-    histogram(ScaledRevenuesAnticipatory[J[2]], x=:RevenueScaled_Fortum, opacity=0.9, nbinsx = 10, name = J[2].name),
-    histogram(ScaledRevenuesAnticipatory[J[3]], x=:RevenueScaled_Statkraft, opacity=0.9, nbinsx = 10, name = J[3].name)],
-    Layout(title = "Statistical Distribution of Revenues - Anticipatory", xaxis_title= "Revenue", xaxis_range = [-2000, 4500], yaxis_title = "Count" ))
+plotRevenueAnticipatory = plot([
+    box(ScaledRevenuesAnticipatory[J[1]], x=:RevenueScaled_Sydkraft, opacity=0.9, nbinsx = 10, name = J[1].name),
+    box(ScaledRevenuesAnticipatory[J[2]], x=:RevenueScaled_Fortum, opacity=0.9, nbinsx = 10, name = J[2].name),
+    box(ScaledRevenuesAnticipatory[J[3]], x=:RevenueScaled_Statkraft, opacity=0.9, nbinsx = 10, name = J[3].name)],
+    Layout(
+    title = "Statistical Distribution of Revenues - Anticipatory",
+    xaxis_title= "Revenue",
+    xaxis_range = [-3000, 5500],
+    yaxis_title = "Count" 
+    )
+)
 
-plot([
-    histogram(ScaledRevenuesNonanticipatory[J[1]], x=:RevenueScaled_Sydkraft, opacity=0.9, nbinsx = 10, name = J[1].name),
-    histogram(ScaledRevenuesNonanticipatory[J[2]], x=:RevenueScaled_Fortum, opacity=0.9, nbinsx = 10, name = J[2].name),
-    histogram(ScaledRevenuesNonanticipatory[J[3]], x=:RevenueScaled_Statkraft, opacity=0.9, nbinsx = 10, name = J[3].name)],
-    Layout(title = "Statistical Distribution of Revenues - Nonanticipatory", xaxis_title= "Revenue", xaxis_range = [-2000, 4500], yaxis_title = "Count" ))
+plotRevenueNonanticipatory = plot([
+    box(ScaledRevenuesNonanticipatory[J[1]], x=:RevenueScaled_Sydkraft, opacity=0.9, nbinsx = 10, name = J[1].name),
+    box(ScaledRevenuesNonanticipatory[J[2]], x=:RevenueScaled_Fortum, opacity=0.9, nbinsx = 10, name = J[2].name),
+    box(ScaledRevenuesNonanticipatory[J[3]], x=:RevenueScaled_Statkraft, opacity=0.9, nbinsx = 10, name = J[3].name)],
+    Layout(
+    title = "Statistical Distribution of Revenues - Nonanticipatory",
+    xaxis_title= "Revenue",
+    xaxis_range = [-3000, 5500],
+    yaxis_title = "Count"
+    )
+)
+
+savefig("C:\\Users\\lenna\\OneDrive - NTNU\\Master Thesis\\Final Presentation\\Images\\BoxplotNonanticipatory.png", plotRevenueNonanticipatory)
+savefig("C:\\Users\\lenna\\OneDrive - NTNU\\Master Thesis\\Final Presentation\\Images\\BoxplotAnticipatory.png", plotRevenueAnticipatory)
