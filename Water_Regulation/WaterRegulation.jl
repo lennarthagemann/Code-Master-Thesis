@@ -1280,14 +1280,15 @@ function SingleOwnerBidding(
     mu_down::Float64,
     iteration_count::Int64,
     T::Int64,
-    Stages = stages;
+    Stages::Int64;
     lambda = 1.0,
     S = 200,
     stopping_rule = [SDDP.BoundStalling(10, 1e-4)],
     stability_report = false,
     printlevel = 0,
     optimizer = CPLEX.Optimizer,
-    deterministic = false)
+    deterministic = false,
+    bounded_bidding = true)
 
 
     I = length(PPoints[1]) - 1
@@ -1296,8 +1297,12 @@ function SingleOwnerBidding(
         # State Variables
         @variable(subproblem, 0 <= l[r = R] <= r.maxvolume, SDDP.State, initial_value = Initial_Reservoir[r])
         @variable(subproblem, ustart[k = K], Bin, SDDP.State, initial_value = 0)
-        @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= 0.75 * sum(k.equivalent * k.spillreference for k in K), SDDP.State, initial_value = 0)
-        # Transition Function
+        if bounded_bidding == true
+            @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= 0.75 * sum(k.equivalent * k.spillreference for k in K), SDDP.State, initial_value = 0)
+        else
+            @variable(subproblem, 0 <= x[i = 1:I+1, t = 1:T] <= sum(k.equivalent * k.spillreference for k in K), SDDP.State, initial_value = 0)
+        end
+            # Transition Function
         @constraint(subproblem, increasing[i = 1:I, t=1:T], x[i,t].out <= x[i+1,t].out)
         if node == 1
             # We only concern ourselves with bidding in the first stage.
@@ -2013,6 +2018,7 @@ function MarketClearing(price::Vector{Float64}, BiddingCurves::Dict{Participant,
     end
     for j in J
         for t in 1:T
+            sort!(BiddingCurves[j][t])
             for i in 1:I[j]
                 if (i == I_t[j][t])
                     Obligation[j][t] = BiddingCurves[j][t][i] * ((price[t] - PPoints[j][t][i])/(PPoints[j][t][i+1] - PPoints[j][t][i])) + BiddingCurves[j][t][i+1] * ((PPoints[j][t][i+1] - price[t])/(PPoints[j][t][i+1] - PPoints[j][t][i]))

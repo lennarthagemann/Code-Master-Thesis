@@ -67,7 +67,7 @@ const T = 24
 const days = 7
 const currentweek = 50
 const iteration_count_short = 50
-const iteration_count_bidding = 100
+const iteration_count_bidding = 10
 const iteration_count_medium = 1000
 
 price_data = prepare_pricedata(filepath_prices)
@@ -81,6 +81,7 @@ MediumModelSingle = ReadMediumModelSingle(savepath_watervalue, R, K, Ω_medium, 
 mu_up, mu_down = BalanceParameters(price_data)
 
 """
+
 function ComparisonRealSingleOwner()
 
     Comparison of Waster Regulation Procedure to Single Owner Revenues side by side.
@@ -88,58 +89,137 @@ function ComparisonRealSingleOwner()
 
 
 """
-function ComparisonRealSingleOwner(J::Vector{Participant})
+function ComparisonRealSingleOwner(J::Vector{Participant},
+    all_res::Vector{Reservoir},
+    price_data::DataFrame, inflow_data::DataFrame,
+    Initial_Reservoir::Dict{Reservoir, Float64}, MediumModel_j,
+    mu_up::Float64, mu_down::Float64, T::Int64, stage_count_bidding::Int64, scenario_count_prices::Int64, scenario_count_inflows::Int64, currentweek::Int64; iteration_count = iteration_count_bidding, printlevel = 0, stability_report = false, bounded_bidding = true)
+    
+    _ , f = AverageReservoirLevel(R, inflow_data)
+    HourlyBiddingCurvesVF = Dict{Participant, Dict{Int64, Vector{Float64}}}[]
+    HourlyBiddingCurvesSingle = Dict{Participant, Dict{Int64, Vector{Float64}}}[]
+    for r in R
+        r.currentvolume = Initial_Reservoir[r]
+    end
+    for day in 1:days
+        # Water Value Functions for all Participants
+        cuts = Dict(j => ReservoirLevelCuts(R, j.plants, j, f, currentweek, stage_count_short) for j in J)
+        WaterCuts = Dict(j => WaterValueCuts(R, j, MediumModel_j[j], cuts[j], currentweek) for j in J)
+        Others = Dict(j => OtherParticipant(J,j,R)[1] for j in J)
+        cutsOther = Dict(j => ReservoirLevelCuts(R, Others[j].plants, Others[j], f, currentweek, stage_count_short) for j in J)
+        WaterCutsOther = Dict(j => WaterValueCuts(R, Others[j], MediumModel_O[j], cutsOther[j], currentweek) for j in J)
+        # Bidding for all Participants
+        HourlyBiddingCurveVF, QnomsVF, _, PPointsVF = FirstLayerSimulation(J, K, all_res, Strategy, price_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_bidding, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek)
+        Ω_single, P_single, _, _= create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, R, stage_count_bidding)
+        PPoints_single = Create_Price_Points(Ω_single, scenario_count_prices, T, mu_up)
+        # Bidding for all Participants in simulated solo environment
+        HourlyBiddingCurve, PPoints = SingleOwnerParticipantBidding(all_res, Initial_Reservoir, j.plants, PPoints_single, Ω_single, P_single, cuts[j], WaterCuts[j], mu_up, mu_down, iteration_count, T, stage_count_bidding)
+        # Market Clearing
+        price = create_Ω_Nonanticipatory(price_data, inflow_data, 1, 1, currentweek, R, stage_count_bidding)[1][stage_count_bidding][1].price
+        inflow_array = Inflow_Scenarios_Short(inflow_data, currentweek, R, stage_count_short, 1)[1]
+        inflow = Dict(r => inflow_array[r][1] for r in R)
+        ObligationVF= MarketClearing(price, HourlyBiddingCurveVF, PPointsVF, J, T)
+        Obligation = MarketClearing(price, HourlyBiddingCurve, PPoints, J, T)
+        # Scheduling for all Participants
+        # Single Owner Scheduling
+        Qnom, z_up_solo, z_down_solo = SingleOwnerScheduling(R, l_single, K, Obligation_solo, price, inflow_array, Ω_single, P_single, cuts_single, WaterCuts_single, mu_up, mu_down, iteration_count_short, T, stage_count_short)
+        # Water Regulation and Single Owner Scheduling VF
+        Qadj1, _, _ , _, _, _ = water_regulation(Qnoms1, Qref, inflow, false)
+        Qnoms2 = SecondLayerSimulation(J, R, Qnoms1, Qadj1, Obligation, price, price_data, inflow_data, Qref, cuts,  WaterCuts, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_short, mu_up, mu_down, T, stage_count_short, scenario_count_prices, scenario_count_inflows, currentweek)
+        # Real Time Balancing for all Participants VF
+        Qadj2, _, P_Swap2, _, _, _ = water_regulation(Qnoms2, Qref, inflow, true)
+        z_up, z_down = ThirdLayerSimulation(J, R, Qadj2, P_Swap2, Obligation, mu_up, mu_down, T)
+        #Reservoir Update (Single Owner)
+        Initial_Reservoir = Dict{Participant, Dict{Reservoir, Float64}}(j => Dict(r => r.currentvolume for r in R) for j in J)
+        for r in R
+            l_single[r] = l_single[r] + inflow[r] - Qnom[r]
+            for j in J
+                Initial_Individual_Reservoir[j][r] = j.individualreservoir[r] - Qnoms2[(participant = j, reservoir = r)] + Qref[r]
+            end
+        end
+        # Final Revenues
+        # Save in Dictionary
+        push!(HourlyBiddingCurvesVF, HourlyBiddingCurveVF)
+        push!(HourlyBiddingCurves, HourlyBiddingCurve)
+    end
     return
 end
 
 """
+
 function SingleOwnerParticipantBidding()
     
     Do an equivalent Single Owner evaluation of the bidding problem.
-    To be used alongside the Bidding within Water Regulation context
+    To be used alongside the Bidding within Water Regulation context.
+    Returns the Bidding Curves for all participants
 
 """
 function SingleOwnerParticipantBidding(J::Vector{Participant},
     all_res::Vector{Reservoir},
     price_data::DataFrame, inflow_data::DataFrame,
-    cuts,  WaterCuts,
-    Initial_Reservoir::Dict{Reservoir, Float64}, 
-    mu_up::Float64, mu_down::Float64, T::Int64, stage_count_bidding::Int64, scenario_count_prices::Int64, scenario_count_inflows::Int64, currentweek::Int64; printlevel = 0, stability_report = false, bounded_bidding = true)
-
+    Initial_Reservoir::Dict{Reservoir, Float64}, MediumModel_j,
+    mu_up::Float64, mu_down::Float64, T::Int64, stage_count_bidding::Int64, scenario_count_prices::Int64, scenario_count_inflows::Int64, currentweek::Int64; iteration_count = iteration_count_bidding, printlevel = 0, stability_report = false, bounded_bidding = true)
+    
+    _ , f = AverageReservoirLevel(R, inflow_data)
     HourlyBiddingCurves = Dict{Participant, Dict{Int64, Vector{Float64}}}()
+    PPoints = Dict{Participant, Vecetor{Vector{Float64}}}()
+    
+    cuts = Dict(j => ReservoirLevelCuts(R, j.plants, j, f, currentweek, stage_count_short) for j in J)
+    WaterCuts = Dict(j => WaterValueCuts(R, j, MediumModel_j[j], cuts[j], currentweek) for j in J)
+    for r in R
+        r.currentvolume = Initial_Reservoir[r]
+    end
     for j in J
         R = collect(filter(r -> j.participationrate[r] > 0.0, all_res))
         Ω_single, P_single, _, _= create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, R, stage_count_bidding)
         PPoints_single = Create_Price_Points(Ω_single, scenario_count_prices, T, mu_up)
-        HourlyBiddingCurves[j] = SingleOwnerBidding(R, Initial_Reservoir, j.plants, PPoints_single, Ω_single, P_single, cuts[j], WaterCuts[j], mu_up, mu_down, iteration_count, T)
+        HourlyBiddingCurves[j] = SingleOwnerBidding(R, Initial_Reservoir, j.plants, PPoints_single, Ω_single, P_single, cuts[j], WaterCuts[j], mu_up, mu_down, iteration_count, T, stage_count_bidding)
+        PPoints[j] = PPoints_single
     end
-    return HourlyBiddingCurves
+    for j in J
+        for t in 1:T
+            sort!(HourlyBiddingCurves[j][t])
+        end
+    end
+    return HourlyBiddingCurves, PPoints
 end
 
 """
+
 function SingleOwnerParticipantScheduling()
     
     Do an equivalent Single Owner evaluation of the bidding problem.
     To be used alongside the Bidding within Water Regulation context
 
 """
-function SingleOwnerParticipantScheduling(J::Vector{Participant})
+function SingleOwnerParticipantScheduling(J::Vector{Participant},
+    all_res::Vector{Reservoir}, Initial_Reservoir,
+    y_initial, price, f_initial,
+    cuts, WaterCuts,
+    mu_up::Float64, mu_down::Float64, T::Int64, stage_count_short::Int64, scenario_count_prices::Int64, scenario_count_inflows::Int64, currentweek::Int64;)
+    Qnoms = Dict{Participant, Dict{Reservoir, Float64}}()
+    z_ups = Dict{Participant, Vector{Float64}}()
+    z_downs = Dict{Participant, Vector{Float64}}()
     for j in J
-        Qnom, z_up, z_down = SingleOwnerScheduling(R, Initial_Reservoir, j.plants,
-        y_initial, price, f_initial,
-        Ω, P, cuts, WaterCuts, mu_up, mu_down,iteration_count, T, Stages)
+        R = collect(filter(r -> j.participationrate[r] > 0.0, all_res))
+        Ω_local, P_local, _, _ = create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, R, stage_count_short)
+        Qnom, z_up, z_down = SingleOwnerScheduling(R, Initial_Reservoir[j], j.plants,
+        y_initial[j], price, f_initial,
+        Ω_local, P_local, cuts[j], WaterCuts[j], mu_up, mu_down,iteration_count, T, stage_count_short)
         Qnoms[j] = Qnom
         z_ups[j] = z_up
         z_downs[j] = z_down
     end 
+    return Qnoms, z_ups, z_downs
 end
 
-
 """
+
 function ResultsToDataFrameRealSingleOwner()
     
     To save the results for later analysis, organize them inside a DataFrame.
     This is also helpful to do some statisical analysis, with functions from DataFrames.jl
+
 """
 function ResultsToDataFrameRealSingleOwner(savepath, J, R, Strategy, Individual_Revenues, Revenue_single, l_single, l_vf, l_vf_ind, Qadj, Qsingle, Qnoms_individual, P_Swaps, Obligations, Obligations_single, z_ups, z_downs, Weeks::Vector{Int64}; save = true)
     column_names = ["week", "day", ["Strategy_" * j.name for j in J]..., ["Reservoir_Single_" * r.dischargepoint for r in R]..., ["Reservoir_VF_" * r.dischargepoint for r in R]..., ["Individual_Reservoir_" * j.name * "_" * r.dischargepoint for j in J for r in R]..., ["Qadj_" * r.dischargepoint for r in R]..., ["Q_single_" * r.dischargepoint for r in R]..., ["Qnom_$(j.name)_$(r.dischargepoint)" for j in J for r in R]..., ["P_Swaps_$(j.name)_$(r.dischargepoint)" for j in J for r in R]..., ["Obligations_" * j.name for j in J]...,"Obligations_single", ["VF_Revenues_" * j.name for j in J]..., "Single_Revenue", ["Split_Revenues_" * j.name for j in J]..., ["z_ups_" * j.name for j in J]..., ["z_downs_" * j.name for j in J]... ]
@@ -215,6 +295,16 @@ function ResultsToDataFrameRealSingleOwner(savepath, J, R, Strategy, Individual_
     end
     return df
 end
+
+
+Weeks = [2, 15, 20, 30, 40, 45, 50]
+# Weeks = [1, 14, 19, 29, 39, 44, 49]
+# Weeks = [9, 13, 18, 28, 38, 43, 48]
+# Weeks = [8, 12, 17, 27, 37, 42, 47]
+# Weeks = [7, 11, 16, 26, 36, 41, 46]
+
+WeeklyAverageReservoirLevels = Dict(week => Dict(r => mean(AverageReservoirLevel(R, inflow_data)[1][r][(week-1)*7 + 1: week * 7]) for r in R) for week in 1:52)
+HourlyBiddingCurvesSingle = SingleOwnerParticipantBidding(J, R, price_data, inflow_data, WeeklyAverageReservoirLevels[2], MediumModelDictionary_j_loaded, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, 2)
 
 
 # df_results = ResultsToDataFrameSingleVsIndividual(savepath_results, J, R, Strategy, Individual_Revenues, Revenues_single, l_singles, l_vfs, l_vf_inds, Qadjs, Qnoms, Qnoms_individual, P_Swaps, Obligations, Obligations_solo, z_ups, z_downs, Weeks)

@@ -189,7 +189,7 @@ function Comparison_Single_VF(R::Vector{Reservoir},J::Vector{Participant}, K::Ve
         Ω_single, P_single, _, _= create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, R, stage_count_bidding)
         PPoints_single = Create_Price_Points(Ω_single, scenario_count_prices, T, mu_up)
         HourlyBiddingCurve = SingleOwnerBidding(R, l_single, K, PPoints_single, Ω_single, P_single , cuts_single, WaterCuts_single, mu_up, mu_down, iteration_count_bidding, T, stage_count_bidding)
-        HourlyBiddingCurves, Qnoms1, Ω1, PPoints = FirstLayerSimulation(J, K, R, Strategy, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_short, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek)
+        HourlyBiddingCurves, Qnoms1, _, PPoints = FirstLayerSimulation(J, K, R, Strategy, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_short, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek)
         # Realization of uncertain parameters: inflow and price
         price = create_Ω_Nonanticipatory(price_data, inflow_data, 1, 1, currentweek, R, stage_count_bidding)[1][stage_count_bidding][1].price
         inflow_array = Inflow_Scenarios_Short(inflow_data, currentweek, R, stage_count_short, 1)[1]
@@ -201,7 +201,7 @@ function Comparison_Single_VF(R::Vector{Reservoir},J::Vector{Participant}, K::Ve
         Qnom, z_up_solo, z_down_solo = SingleOwnerScheduling(R, l_single, K, Obligation_solo, price, inflow_array, Ω_single, P_single, cuts_single, WaterCuts_single, mu_up, mu_down, iteration_count_short, T, stage_count_short)
         
         # Individual Scheduling: Two Optimization problems and water regulation procedure (includes reservoir update)
-        Qadj1, _, P_Swap1, _, _, _ = water_regulation(Qnoms1, Qref, inflow, false)
+        Qadj1, _, _ , _, _, _ = water_regulation(Qnoms1, Qref, inflow, false)
         Qnoms2 = SecondLayerSimulation(J, R, Qnoms1, Qadj1, Obligation, price, price_data, inflow_data, Qref, cuts,  WaterCuts, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_short, mu_up, mu_down, T, stage_count_short, scenario_count_prices, scenario_count_inflows, currentweek)
         Qadj2, _, P_Swap2, _, _, _ = water_regulation(Qnoms2, Qref, inflow, true)
         z_up, z_down = ThirdLayerSimulation(J, R, Qadj2, P_Swap2, Obligation, mu_up, mu_down, T)
