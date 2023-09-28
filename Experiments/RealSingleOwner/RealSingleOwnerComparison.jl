@@ -50,8 +50,8 @@ end
 const filepath_Ljungan = pwd() * "\\Water_Regulation\\TestDataWaterRegulation\\Ljungan.json"
 const filepath_prices = pwd() * "\\Inflow Forecasting\\Data\\Spot Prices\\prices_df.csv"
 const filepath_inflows = pwd() * "\\Inflow Forecasting\\Data\\Inflow\\Data from Flasjoen and Holmsjoen.csv"
-const savepath_watervalue = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Inflow Forecasting\\WaterValue"
-const savepath_results = "C:\\Users\\lenna\\OneDrive - NTNU\\Code Master Thesis\\Experiments\\Results\\SingleVsIndividual\\SingleVsIndividualBoundedNom.csv"
+const savepath_watervalue = pwd() * "\\Inflow Forecasting\\WaterValue"
+const savepath_results = pwd() * "\\Experiments\\Results\\RealSingleOwner\\RealSingleOwnerBoundedNom.csv"
 R, K, J = read_data(filepath_Ljungan)
 
 const ColumnReservoir = Dict(r => r.dischargepoint * " Inflow" for r in R)
@@ -125,7 +125,7 @@ function ComparisonRealSingleOwner(J::Vector{Participant},
         WaterCutsOther = Dict(j => WaterValueCuts(all_res, Others[j], MediumModel_O[j], cutsOther[j], currentweek) for j in J)
         # Bidding for all Participants
         println(typeof(Initial_Reservoir))
-        HourlyBiddingCurveVF, QnomVF, _, PPointsVF = FirstLayerSimulation(J, K, all_res, Strategy, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_bidding, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek)
+        HourlyBiddingCurveVF, QnomVF1, _, PPointsVF = FirstLayerSimulation(J, K, all_res, Strategy, price_data, inflow_data, Qref, cuts, cutsOther, WaterCuts, WaterCutsOther, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_bidding, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek)
         # Bidding for all Participants in simulated solo environment
         HourlyBiddingCurve, PPoints = SingleOwnerParticipantBidding(J, all_res, price_data, inflow_data, l_single, cuts, WaterCuts, mu_up, mu_down, T, stage_count_bidding, scenario_count_prices, scenario_count_inflows, currentweek)
         # Market Clearing
@@ -139,17 +139,17 @@ function ComparisonRealSingleOwner(J::Vector{Participant},
         Ω_single, P_single, _, _= create_Ω_Nonanticipatory(price_data, inflow_data, scenario_count_prices, scenario_count_inflows, currentweek, all_res, stage_count_bidding)
         Qnom, z_up_solo, z_down_solo = SingleOwnerParticipantScheduling(J, all_res, Initial_Reservoir, Obligation, price, inflow_array, cuts, WaterCuts, mu_up, mu_down, T, stage_count_short, scenario_count_prices, scenario_count_inflows, currentweek)
         # Water Regulation and Single Owner Scheduling VF
-        Qadj1, _, _ , _, _, _ = water_regulation(QnomVF, Qref, inflow, false)
-        Qnoms2 = SecondLayerSimulation(J, R, QnomVF, Qadj1, ObligationVF, price, price_data, inflow_data, Qref, cuts,  WaterCuts, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_short, mu_up, mu_down, T, stage_count_short, scenario_count_prices, scenario_count_inflows, currentweek)
+        Qadj1, _, _ , _, _, _ = water_regulation(QnomVF1, Qref, inflow, false)
+        QnomVF = SecondLayerSimulation(J, all_res, QnomVF1, Qadj1, ObligationVF, price, price_data, inflow_data, Qref, cuts,  WaterCuts, Initial_Reservoir, Initial_Individual_Reservoir, iteration_count_short, mu_up, mu_down, T, stage_count_short, scenario_count_prices, scenario_count_inflows, currentweek)
         # Real Time Balancing for all Participants VF
-        Qadj2, _, P_Swap2, _, _, _ = water_regulation(Qnoms2, Qref, inflow, true)
-        z_up, z_down = ThirdLayerSimulation(J, R, Qadj2, P_Swap2, ObligationVF, mu_up, mu_down, T)
+        Qadj2, _, P_Swap2, _, _, _ = water_regulation(QnomVF, Qref, inflow, true)
+        z_up, z_down = ThirdLayerSimulation(J, all_res, Qadj2, P_Swap2, ObligationVF, mu_up, mu_down, T)
         #Reservoir Update (Single Owner)
         Initial_Reservoir =  Dict{Reservoir, Float64}(r => r.currentvolume for r in R)
         for j in J
             for r in collect(filter(r -> j.participationrate[r] > 0, all_res))
                 l_single[j][r] = l_single[j][r] + inflow[r] - Qnom[j][r]
-                Initial_Individual_Reservoir[j][r] = j.individualreservoir[r] - Qnoms2[(participant = j, reservoir = r)] + Qref[r]
+                Initial_Individual_Reservoir[j][r] = j.individualreservoir[r] - QnomVF[(participant = j, reservoir = r)] + Qref[r]
             end
         end
         # Final Revenues
@@ -262,7 +262,7 @@ function ResultsToDataFrameRealSingleOwner(savepath, J, R, Strategy, QnomsVF, Qn
                 Strategy_Fortum = Strategy[J[2]],
                 Strategy_Statkraft = Strategy[J[3]],
                 Qnoms_single_Sydkraft_Flasjon = Qnoms_single[week][day][J[1]][R[1]],
-                Qnoms_single_Sydkraft_Holmsjon = Qnoms_single[week][day][J[1]][R[2]],
+                Qnoms_single_Sydkraft_Holmsjon = Qnoms_single[week][day][J[2]][R[2]],
                 Qnoms_single_Fortum_Flasjon = Qnoms_single[week][day][J[2]][R[1]],
                 Qnoms_single_Fortum_Holmsjon = Qnoms_single[week][day][J[2]][R[2]],
                 Qnoms_single_Statkraft_Flasjon = Qnoms_single[week][day][J[3]][R[1]],
@@ -273,13 +273,12 @@ function ResultsToDataFrameRealSingleOwner(savepath, J, R, Strategy, QnomsVF, Qn
                 Qnoms_VF_Fortum_Holmsjon = QnomsVF[week][day][(participant = J[2], reservoir = R[2])], 
                 Qnoms_VF_Statkraft_Flasjon = QnomsVF[week][day][(participant = J[3], reservoir = R[1])], 
                 Qnoms_VF_Statkraft_Holmsjon = QnomsVF[week][day][(participant = J[3], reservoir = R[2])], 
-                VF_Revenues_Sydkraft = Individual_RevenuesVF[week][day][J[1]],
-                VF_Revenues_Fortum = Individual_RevenuesVF[week][day][J[2]],
-                VF_Revenues_Statkraft = Individual_RevenuesVF[week][day][J[3]],
-                Single_Revenue = Revenue_single[week][day],
-                Split_Revenues_Sydkraft = Individual_Revenues_solo[week][day][J[1]],
-                Split_Revenues_Fortum = Individual_Revenues_solo[week][day][J[2]],
-                Split_Revenues_Statkraft = Individual_Revenues_solo[week][day][J[3]],
+                Individual_Revenues_VF_Sydkraft = Individual_RevenuesVF[week][day][J[1]],
+                Individual_Revenues_VF_Fortum = Individual_RevenuesVF[week][day][J[2]],
+                Individual_Revenues_VF_Statkraft = Individual_RevenuesVF[week][day][J[3]],
+                Individual_Revenues_single_Sydkraft = Individual_Revenues_solo[week][day][J[1]],
+                Individual_Revenues_single_Fortum = Individual_Revenues_solo[week][day][J[2]],
+                Individual_Revenues_single_Statkraft = Individual_Revenues_solo[week][day][J[3]],
             )
             println(length(names(df)))
             push!(df, row)
@@ -341,4 +340,4 @@ end
         
 
 
-df_results = ResultsToDataFrameSingleVsIndividual(savepath_results, J, R, Strategy, QnomsVF, Qnoms_single, Individual_RevenuesVF, Individual_Revenues_solo, Weeks)
+df_results = ResultsToDataFrameRealSingleOwner(savepath_results, J, R, Strategy, QnomsVF, Qnoms_single, Individual_RevenuesVF, Individual_Revenues_solo, Weeks, days)
