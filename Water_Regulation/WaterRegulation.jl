@@ -683,7 +683,7 @@ function Nonanticipatory_Bidding(
     Stages::Int64,
     Initial_Reservoir::Dict{Reservoir, Float64},
     Initial_Individual_Reservoir::Dict{Participant, Dict{Reservoir, Float64}};
-    bounded_bidding = false,
+    bounded_bidding = true,
     bounded_nomination = true,
     S = 200,
     printlevel = 0,
@@ -696,10 +696,6 @@ function Nonanticipatory_Bidding(
     K_j = j.plants
     R = collect(filter(r -> j.participationrate[r] > 0.0, all_res))
     I = length(PPoints[1]) - 1
-
-    if bounded_bidding
-        println("Nominations are bounded by 75%")
-    end
 
     function subproblem_builder_nonanticipatory(subproblem::Model, node::Int64)
         # State Variables
@@ -830,17 +826,14 @@ function Anticipatory_Bidding(
     Initial_Individual_Reservoir::Dict{Participant, Dict{Reservoir, Float64}};
     S = 200,
     printlevel = 0,
-    bounded_bidding = false,
+    bounded_bidding = true,
     bounded_nomination = true,
     stability_report = false,
     stopping_rule = SDDP.BoundStalling(10, 1e-4),
     optimizer = CPLEX.Optimizer,
     DualityHandler = SDDP.ContinuousConicDuality(),
     lambda = 10.0)
-            
-    if bounded_bidding
-        println("Nominations are bounded by 75%")
-    end
+
     K_j = j.plants
     O, K_O = OtherParticipant(J, j, all_res)
     R = collect(filter(r -> j.participationrate[r] > 0, all_res))
@@ -986,7 +979,7 @@ function FirstLayerSimulation(J::Vector{Participant},
     price_data::DataFrame, inflow_data::DataFrame,
     Qref::Dict{Reservoir, Float64},
     cuts, cutsOther, WaterCuts, WaterCutsOther,
-    Initial_Reservoir, Initial_Individual_Reservoir,
+    Initial_Reservoir::Dict{Reservoir, Float64}, Initial_Individual_Reservoir::Dict{Participant, Dict{Reservoir, Float64}},
     iteration_count_short::Int64, mu_up::Float64, mu_down::Float64, T::Int64, stage_count_bidding::Int64, scenario_count_prices::Int64, scenario_count_inflows::Int64, currentweek::Int64; printlevel = 0, stability_report = false, bounded_bidding = true)
 
     HourlyBiddingCurves = Dict{Participant, Dict{Int64, Vector{Float64}}}()
